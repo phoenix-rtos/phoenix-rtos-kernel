@@ -1,0 +1,19 @@
+usrv.c
+  s_b2562b154c5f77::t_f6db5a60370e93 27-29,47-49,62-63,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89223d3033774ba18595bbc9599f84df7eb15ea4",
+  "prompts": {},
+  "sessions": {
+    "s_b2562b154c5f77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d06d8cc-d657-408a-985a-2d351ff03c32",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
