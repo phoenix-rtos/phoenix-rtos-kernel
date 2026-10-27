@@ -24,6 +24,9 @@
 
 #define USRV_ID_LOG 0
 
+/* priority between requests, so a request is picked up at once */
+#define USRV_PRIO_IDLE (MIN_PRIO + 1)
+
 
 static struct {
 	oid_t oid;
@@ -41,6 +44,9 @@ static void usrv_msgthr(void *arg)
 			continue;
 		}
 
+		/* serve the request at its sender's priority - logging must not preempt more important threads */
+		(void)proc_threadPriority(proc_current(), msg.priority, NULL);
+
 		oid.id = msg.oid.id;
 
 		switch (oid.id) {
@@ -53,6 +59,8 @@ static void usrv_msgthr(void *arg)
 				(void)proc_respond(oid.port, &msg, rid);
 				break;
 		}
+
+		(void)proc_threadPriority(proc_current(), USRV_PRIO_IDLE, NULL);
 	}
 }
 
@@ -64,7 +72,7 @@ void _usrv_start(void)
 		return;
 	}
 
-	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, MIN_PRIO + 1, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
+	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, USRV_PRIO_IDLE, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
 }
 
 
