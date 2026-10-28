@@ -40,6 +40,18 @@
 
 #define DMA_CHANNELS 12U
 
+#if !defined(USE_LSE_CLOCK_SOURCE)
+#define USE_LSE_CLOCK_SOURCE 0
+#endif
+
+#if USE_LSE_CLOCK_SOURCE
+#define RCC_BDCR_RTCSEL_VAL  1
+#define RCC_RTC_PREDIV_S_VAL (256UL - 1UL)
+#else
+#define RCC_BDCR_RTCSEL_VAL  2
+#define RCC_RTC_PREDIV_S_VAL (250UL - 1UL)
+#endif
+
 
 static struct {
 	volatile u32 *rcc;
@@ -424,19 +436,38 @@ int _stm32_systickInit(u32 interval)
 }
 
 
-/* Real time clock */
+/* Low speed clock source (LSE/LSI) */
 
 
-static void _stm32_rtcInit(void)
+static void _stm32_enableLsClock(void)
 {
+#if USE_LSE_CLOCK_SOURCE
 	u32 t = 0;
 
+	/* Enable LSE clock */
+	t = *(stm32_common.rcc + rcc_bdcr) & ~(0x3U << 3);          /* mask LSEDRV */
+	*(stm32_common.rcc + rcc_bdcr) = t | (3U << 3) | (1U << 0); /* LSEDRV -> high | LSEON */
+	hal_cpuDataMemoryBarrier();
+	while ((*(stm32_common.rcc + rcc_bdcr) & (1U << 1)) == 0) {
+		/* Wait for LSERDY */
+	}
+#else
 	/* Enable LSI clock */
 	*(stm32_common.rcc + rcc_csr) |= (1U << 0); /* LSION */
 	hal_cpuDataMemoryBarrier();
 	while ((*(stm32_common.rcc + rcc_csr) & (1U << 1)) == 0) {
 		/* Wait for LSIRDY */
 	}
+#endif
+}
+
+
+/* Real time clock */
+
+
+static void _stm32_rtcInit(void)
+{
+	u32 t = 0;
 
 	/* Unlock backup domain register */
 	*(stm32_common.pwr + pwr_dbpr) = (1U << 0); /* DBP */
@@ -445,18 +476,31 @@ static void _stm32_rtcInit(void)
 		/* Wait for DBP */
 	}
 
+	_stm32_enableLsClock();
+
 	/* Configure RTC clock source */
-	if (((*(stm32_common.rcc + rcc_bdcr) >> 8) & 0x3) != 2) {
+	if (((*(stm32_common.rcc + rcc_bdcr) >> 8) & 0x3) != RCC_BDCR_RTCSEL_VAL) {
 		*(stm32_common.rcc + rcc_bdcr) |= (1U << 16); /* enter BDRST */
 		hal_cpuDataMemoryBarrier();
 
 		*(stm32_common.rcc + rcc_bdcr) &= ~(1U << 16); /* exit BDRST */
 		hal_cpuDataMemoryBarrier();
 
+		_stm32_enableLsClock();
+
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(0x3U << 8); /* mask RTCSEL */
-		*(stm32_common.rcc + rcc_bdcr) = t | (2U << 8);    /* RTCSEL -> LSI */
+		*(stm32_common.rcc + rcc_bdcr) = t | (RCC_BDCR_RTCSEL_VAL << 8);
 		hal_cpuDataMemoryBarrier();
 	}
+
+#if USE_LSE_CLOCK_SOURCE
+	/* Enable LSESYS clock */
+	*(stm32_common.rcc + rcc_bdcr) |= (1U << 7); /* LSESYSEN */
+	hal_cpuDataMemoryBarrier();
+	while ((*(stm32_common.rcc + rcc_bdcr) & (1U << 11)) == 0) {
+		/* Wait for LSESYSRDY */
+	}
+#endif
 
 	/* Enable RTC device */
 	(void)_stm32_rccSetDevClock(pctl_rtcapb, 1, 1);
@@ -475,13 +519,13 @@ static void _stm32_rtcInit(void)
 		/* Wait for INITF */
 	}
 
-	/* Set RTC prescaler to 32'000 (LSI)
+	/* Set the RTC prescaler
 	 * From RM0487, 46.6.5: "The initialization must be performed in two separate write accesses."
 	 */
 	t = *(stm32_common.rtc + rtc_prer) & ~(0x7fUL << 16); /* PREDIV_A */
 	*(stm32_common.rtc + rtc_prer) = t | ((128UL - 1UL) << 16);
 	t = *(stm32_common.rtc + rtc_prer) & ~0x7fffUL; /* PREDIV_S */
-	*(stm32_common.rtc + rtc_prer) = t | (250UL - 1UL);
+	*(stm32_common.rtc + rtc_prer) = t | RCC_RTC_PREDIV_S_VAL;
 
 	/* Reset RTC interrupt bits, select RTC/16 wakeup clock, and turn on shadow register bypass */
 	t = *(stm32_common.rtc + rtc_cr) & ~((1UL << 14) | (1UL << 10) | 0x7UL); /* WUTIE | WUTE | WUCKSEL */

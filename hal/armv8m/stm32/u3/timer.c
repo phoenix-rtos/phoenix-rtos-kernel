@@ -19,6 +19,28 @@
 #include "hal/spinlock.h"
 #include "hal/string.h"
 
+#include <board_config.h>
+
+#if !defined(USE_LSE_CLOCK_SOURCE)
+#define USE_LSE_CLOCK_SOURCE 0
+#endif
+
+/* Constants for configuring which LPTIM peripheral is used as system timer */
+#define LPTIM_SYSTEM_BASE      ((void *)0x50044c00UL) /* LPTIM4 base address */
+#define LPTIM_SYSTEM_IRQ       lptim4_irq
+#define LPTIM_SYSTEM_PCTL      pctl_lptim4
+#define LPTIM_SYSTEM_IPCLK_SEL pctl_ipclk_lptim34sel
+#define LPTIM_SYSTEM_CYCLE_MS  16000UL /* 16 s */
+
+#if USE_LSE_CLOCK_SOURCE
+#define LPTIM_SYSTEM_CLOCK_NAME "LSE"
+#define LPTIM_SYSTEM_IPCLK_VAL  3
+#define LPTIM_SYSTEM_INPUT      32768UL
+#else
+#define LPTIM_SYSTEM_CLOCK_NAME "LSI"
+#define LPTIM_SYSTEM_IPCLK_VAL  1
+#define LPTIM_SYSTEM_INPUT      32000UL
+#endif
 
 #define PRESC_SHIFT 3UL
 #define RELOAD_VAL  (((LPTIM_SYSTEM_INPUT >> PRESC_SHIFT) * LPTIM_SYSTEM_CYCLE_MS / 1000UL) - 1UL)
@@ -187,10 +209,10 @@ char *hal_timerFeatures(char *features, size_t len)
 	char cycle[40];
 	long cycle_len = hal_i2s(", cycle [us] ", cycle, (unsigned long)hal_timerCyc2us(TICKS_PER_CYCLE), 10U, 0);
 
-	(void)hal_strncpy(features, "Using Low-Power Timer", len);
-	if (len > (21 + cycle_len)) {
+	(void)hal_strncpy(features, "Using Low-Power Timer on " LPTIM_SYSTEM_CLOCK_NAME, len);
+	if (len > (28 + cycle_len)) {
 		cycle[cycle_len] = '\0';
-		(void)hal_strncpy(features + 21, cycle, len - 21);
+		(void)hal_strncpy(features + 28, cycle, len - 28);
 	}
 
 	features[len - 1U] = '\0';
