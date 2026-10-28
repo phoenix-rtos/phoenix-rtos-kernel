@@ -228,6 +228,23 @@ int proc_send_returnable(u32 port, msg_t *msg)
 }
 
 
+msg_t *proc_kmsg(void)
+{
+	thread_t *t = proc_current();
+
+	if (t->ipc.kmsg == NULL) {
+		t->ipc.kmsg = vm_kmalloc(sizeof(msg_t));
+		if (t->ipc.kmsg == NULL) {
+			return NULL;
+		}
+	}
+
+	hal_memset(t->ipc.kmsg, 0, sizeof(msg_t));
+
+	return t->ipc.kmsg;
+}
+
+
 static void _msgHandOver(thread_t *forward, const msg_t *msg, msg_rid_t rid)
 {
 	/* same aspace, we can copy directly */

@@ -597,6 +597,9 @@ static void thread_destroy(thread_t *thread)
 	LIB_ASSERT(thread->scOwn->t == thread, "own SC still donated?");
 	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
+	if (thread->ipc.kmsg != NULL) {
+		vm_kfree(thread->ipc.kmsg);
+	}
 
 	xfer_releaseIpcBuf(thread);
 

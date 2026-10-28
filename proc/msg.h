@@ -35,6 +35,9 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid);
 int proc_send_returnable(u32 port, msg_t *msg);
 
 
+msg_t *proc_kmsg(void);
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
