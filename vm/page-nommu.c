@@ -61,7 +61,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, partition_t *part)
 {
 	page_t *p;
 
@@ -73,7 +73,7 @@ page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
 }
 
 
-void vm_pageFree(page_t *p)
+void vm_pageFree(page_t *p, partition_t *part)
 {
 	(void)proc_lockSet(&pages.lock);
 
@@ -138,7 +138,7 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 }
 
 
-void vm_pageGetStats(size_t *freesz)
+void _vm_pageGetStats(size_t *freesz)
 {
 	*freesz = pages.freesz;
 }
@@ -149,21 +149,24 @@ void vm_pageinfo(meminfo_t *info)
 	(void)proc_lockSet(&pages.lock);
 
 	info->page.alloc = pages.allocsz;
-	info->page.free = pages.freesz;
+	info->page.total = pages.freesz - pages.allocsz;
 	info->page.boot = pages.bootsz;
 	info->page.sz = sizeof(page_t);
 	info->page.mapsz = -1;
+	info->page.map.mapsz = -1;
 
 	(void)proc_lockClear(&pages.lock);
 }
 
 
-void _page_init(pmap_t *pmap, void **bss, void **top)
+void _page_init(vm_map_t *kmap, void **bss, void **top)
 {
 	page_t *p;
-	const syspage_map_t *map;
+	const syspage_map_t *map, *dmap;
 
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
+
+	kmap->phMaps = NULL;
 
 	/* TODO: handle error */
 	map = syspage_mapAddrResolve((addr_t)&__bss_start);
@@ -174,9 +177,18 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	pages.freesz = map->end - (unsigned int)(*bss);
 	pages.bootsz = 0;
 
+	/* Add remaining KernelDmap maps */
+	dmap = syspage_mapList();
+	do {
+		if (((dmap->attr & mAttrKernelDmap) != 0U) && (dmap != map)) {
+			pages.freesz += dmap->end - dmap->start;
+		}
+	} while ((dmap = dmap->next) != syspage_mapList());
+
 	pages.freeq = (*bss);
 	pages.freeqsz = pages.freesz / SIZE_PAGE;
 
+	LIB_ASSERT_ALWAYS((ptr_t)(*bss) + pages.freeqsz * sizeof(page_t) <= (ptr_t)map->end, "vm: page_t pool does not fit in kernel bss map");
 	(*bss) += pages.freeqsz * sizeof(page_t);
 	(*top) = max((*top), (*bss));
 

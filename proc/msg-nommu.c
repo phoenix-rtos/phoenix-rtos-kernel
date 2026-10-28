@@ -42,6 +42,10 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	sender = proc_current();
+	if (proc_isPortAllowed(p, sender->process, 0) == 0) {
+		port_put(p, 0);
+		return -EACCES;
+	}
 
 	kmsg.msg = msg;
 	kmsg.src = sender->process;
@@ -128,6 +132,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
+	}
+
+	if (proc_isPortAllowed(p, current->process, 1) == 0) {
+		port_put(p, 0);
+		return -EACCES;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);

@@ -15,6 +15,7 @@
 #define _PH_PROC_PORT_H_
 
 #include "hal/hal.h"
+#include "include/syspage.h"
 #include "lib/lib.h"
 #include "msg.h"
 #include "process.h"
@@ -30,6 +31,7 @@ typedef struct _port_t {
 
 	kmsg_t *kmessages;
 	process_t *owner;
+	syspage_named_port_t *namedPort;
 	int refs, closed;
 
 	spinlock_t spinlock;
@@ -60,6 +62,9 @@ msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
 
 
 kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
+
+
+int proc_isPortAllowed(port_t *port, process_t *process, int isRecv);
 
 
 void _port_init(void);
