@@ -22,17 +22,68 @@ typedef struct {
 } xferPlan_t;
 
 
-static xferPlan_t _classify(const thread_t *caller, const thread_t *recv, const void *data, size_t size, size_t extraUsed)
+/* Where a payload of a message type can go in i.raw or o.raw, past the fields of the type; -1 if it can't. */
+static int _rawOffset(int type, msg_side_t side)
+{
+	const msg_t *m = NULL;
+
+	switch (type) {
+		case mtOpen:
+		case mtClose:
+			return (side == msg_side_in) ? (int)sizeof(m->i.openclose) : 0;
+
+		case mtRead:
+		case mtWrite:
+		case mtTruncate:
+			return (side == msg_side_in) ? (int)sizeof(m->i.io) : 0;
+
+		case mtCreate:
+			return (side == msg_side_in) ? (int)sizeof(m->i.create) : (int)sizeof(m->o.create);
+
+		case mtSetAttr:
+		case mtGetAttr:
+			return (side == msg_side_in) ? (int)sizeof(m->i.attr) : (int)sizeof(m->o.attr);
+
+		case mtLink:
+		case mtUnlink:
+			return (side == msg_side_in) ? (int)sizeof(m->i.ln) : 0;
+
+		case mtReaddir:
+			return (side == msg_side_in) ? (int)sizeof(m->i.readdir) : 0;
+
+		case mtLookup:
+			return (side == msg_side_in) ? 0 : (int)sizeof(m->o.lookup);
+
+		case mtDestroy:
+		case mtGetAttrAll:
+			return 0;
+
+		/* the raw areas of mtDevCtl and of the types the kernel doesn't know are the server's protocol */
+		default:
+			return -1;
+	}
+}
+
+
+static xferPlan_t _classify(const thread_t *caller, const thread_t *recv, int type, msg_side_t side, const void *data, size_t size, size_t extraUsed)
 {
 	xferPlan_t plan = { msg_xfer_none, 0 };
 	const char *w = caller->ipc.w;
+	int rawofs;
 
 	if (size == 0U) {
 		return plan;
 	}
 
+	rawofs = _rawOffset(type, side);
+
+	/* travels with the message itself, nothing to map or copy */
+	if ((rawofs >= 0) && (size <= MSG_RAW_SIZE - (size_t)rawofs)) {
+		plan.kind = msg_xfer_raw;
+		plan.ofs = (size_t)rawofs;
+	}
 	/* a held buffer still has a previous caller's output in it */
-	if ((size + extraUsed <= recv->ipc.size) && (__atomic_load_n(&recv->ipc.heldBy, __ATOMIC_ACQUIRE) == NULL)) {
+	else if ((size + extraUsed <= recv->ipc.size) && (__atomic_load_n(&recv->ipc.heldBy, __ATOMIC_ACQUIRE) == NULL)) {
 		plan.kind = msg_xfer_extra;
 		plan.ofs = extraUsed;
 	}
@@ -56,6 +107,11 @@ static int _setupSide(thread_t *caller, thread_t *recv, const xferPlan_t *plan, 
 	*rdata = NULL;
 
 	switch (plan->kind) {
+		case msg_xfer_raw:
+			/* recv's msg is in its address space, only the address is taken here */
+			*rdata = (side == msg_side_in) ? &recv->ipc.msgPtr->i.raw[plan->ofs] : &recv->ipc.msgPtr->o.raw[plan->ofs];
+			return EOK;
+
 		case msg_xfer_extra:
 			*rdata = (char *)recv->ipc.w + plan->ofs;
 			return EOK;
@@ -95,14 +151,16 @@ static void _release(thread_t *caller)
 }
 
 
-int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata)
+int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata)
 {
-	xferPlan_t in = _classify(caller, recv, idata, isize, 0);
-	xferPlan_t out = _classify(caller, recv, odata, osize, (in.kind == msg_xfer_extra) ? isize : 0U);
+	xferPlan_t in = _classify(caller, recv, type, msg_side_in, idata, isize, 0);
+	xferPlan_t out = _classify(caller, recv, type, msg_side_out, odata, osize, (in.kind == msg_xfer_extra) ? isize : 0U);
 	int err = EOK;
 
 	caller->ipc.call.ikind = (u8)in.kind;
 	caller->ipc.call.okind = (u8)out.kind;
+	caller->ipc.call.irawofs = (u8)in.ofs;
+	caller->ipc.call.orawofs = (u8)out.ofs;
 	caller->ipc.call.isize = isize;
 	caller->ipc.call.osize = osize;
 	caller->ipc.call.odata = odata;
@@ -121,7 +179,10 @@ int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize
 		return err;
 	}
 
-	if (in.kind == msg_xfer_extra) {
+	if (in.kind == msg_xfer_raw) {
+		hal_memcpy(iraw + in.ofs, idata, isize);
+	}
+	else if (in.kind == msg_xfer_extra) {
 		hal_memcpy(recv->ipc.kw, idata, isize);
 	}
 
@@ -134,6 +195,14 @@ int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize
 int xfer_forward(thread_t *caller, thread_t *recv, thread_t *forward, msg_t *msg)
 {
 	size_t used = 0;
+
+	/* the payload is handed over with msg, it only has to point into forward's copy */
+	if (caller->ipc.call.ikind == msg_xfer_raw) {
+		msg->i.data = &forward->ipc.msgPtr->i.raw[caller->ipc.call.irawofs];
+	}
+	if (caller->ipc.call.okind == msg_xfer_raw) {
+		msg->o.data = &forward->ipc.msgPtr->o.raw[caller->ipc.call.orawofs];
+	}
 
 	if (caller->ipc.call.okind == msg_xfer_extra) {
 		used = _oofs(caller) + caller->ipc.call.osize;
@@ -187,6 +256,10 @@ size_t xfer_end(thread_t *caller, size_t osize)
 			}
 			break;
 
+		case msg_xfer_raw:
+			/* comes back in the reply's raw area, _xfer_copyOut() takes it from there */
+			break;
+
 		case msg_xfer_borrow:
 			xfer_borrowCopyBack(caller, _oofs(caller), size);
 			break;
@@ -221,7 +294,11 @@ static const void *_pendingSrc(const thread_t *caller)
 
 void _xfer_copyOut(thread_t *caller)
 {
-	if (caller->ipc.call.owner != NULL) {
+	/* reply.size is what xfer_end() returned, at most the caller's o.size */
+	if ((caller->ipc.call.okind == msg_xfer_raw) && (caller->ipc.reply.size != 0U)) {
+		hal_memcpy(caller->ipc.call.odata, caller->ipc.reply.raw + caller->ipc.call.orawofs, caller->ipc.reply.size);
+	}
+	else if (caller->ipc.call.owner != NULL) {
 		hal_memcpy(caller->ipc.call.odata, _pendingSrc(caller), caller->ipc.call.osize);
 		_unhold(caller);
 	}

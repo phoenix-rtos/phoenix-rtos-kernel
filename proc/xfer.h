@@ -26,6 +26,7 @@
 
 typedef enum {
 	msg_xfer_none = 0, /* nothing to transfer */
+	msg_xfer_raw,      /* payload fits into the message's raw area after the fields of its type */
 	msg_xfer_extra,    /* payload fits into the receiver's IPC buffer */
 	msg_xfer_borrow,   /* payload lives inside the caller's IPC buffer, which the receiver borrows */
 	msg_xfer_map,      /* fallback - the payload pages are mapped into the receiver, see xfer_bufMap() */
@@ -45,8 +46,11 @@ typedef enum {
  */
 
 
-/* Prepares idata/odata for recv, in the caller's address space, and returns them as recv sees them. */
-int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
+/*
+ * Prepares idata/odata for recv, in the caller's address space, and returns them as recv sees them.
+ * iraw is the i.raw recv gets, a msg_xfer_raw input is packed into it.
+ */
+int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
 /* Moves the call's data out of recv's IPC buffer and points msg at the copy, before recv passes msg on to forward. */

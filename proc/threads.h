@@ -161,6 +161,8 @@ typedef struct _thread_t {
 			u8 ikind;
 			u8 okind;
 			u8 replied; /* the response header waits in reply for the switch to this thread */
+			u8 irawofs; /* msg_xfer_raw: where the payload is in i.raw */
+			u8 orawofs; /* msg_xfer_raw: where the payload is in o.raw */
 			size_t isize;
 			size_t osize;            /* the most a response may write back, then the size still to copy */
 			void *odata;             /* caller's o.data */

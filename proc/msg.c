@@ -143,7 +143,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 		_msgHdrRead(msg, &hdr);
 
-		err = xfer_begin(caller, recv, hdr.idata, hdr.isize, hdr.odata, hdr.osize, &idata, &odata);
+		err = xfer_begin(caller, recv, hdr.type, hdr.raw, hdr.idata, hdr.isize, hdr.odata, hdr.osize, &idata, &odata);
 		if (err < 0) {
 			hal_spinlockSet(&threads_spinlock, &tsc);
 			_portReturnReceiver(p, recv);
