@@ -1197,8 +1197,48 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 }
 
 
-static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
+static int map_belongs(vm_map_t *map, const void *ptr, size_t size)
 {
+	size_t sizeFound;
+	map_entry_t e, *f;
+
+	if (map == NULL) {
+		return -1;
+	}
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
+	e.vaddr = (void *)ptr;
+	e.size = size;
+
+	(void)proc_lockSet(&map->lock);
+
+	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &e.linkage));
+	while ((f != NULL) && (size > 0U)) {
+		/* at this point f->vaddr <= ptr < (f->vaddr + f->size) */
+		sizeFound = f->size - ((ptr_t)ptr - (ptr_t)f->vaddr);
+		if (size <= sizeFound) {
+			size = 0U;
+			break;
+		}
+
+		size -= sizeFound;
+		ptr = (void *)((ptr_t)ptr + sizeFound);
+		/* ptr is now past the end of the found map; if next map is contiguous, we are at the beginning of it */
+		f = lib_treeof(map_entry_t, linkage, lib_rbNext(&f->linkage));
+		if ((f == NULL) || (f->vaddr != ptr)) {
+			break;
+		}
+	};
+
+	(void)proc_lockClear(&map->lock);
+
+	return (size > 0U) ? -1 : 0;
+}
+
+
+int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
+{
+	int ret;
 	ptr_t end;
 	if (size == 0U) {
 		return 0;
@@ -1209,49 +1249,24 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 	}
 
 #if defined(NOMMU) && defined(NOMMU_MAPBELONGS_VALIDATE_MAP)
-	return (pmap_isAllowed(proc->pmapp, ptr, size) == 0) ? -1 : 0;
+	ret = (pmap_isAllowed(proc->pmapp, ptr, size) == 0) ? -1 : 0;
 	/*
 	 * Disabled checking entry owner for now on NOMMU, as we can
 	 * receive memory from different maps and processes via msg
 	 * and RO elf segments may not be assigned to any process.
 	 */
+	(void)map_belongs;
 #elif !defined(NOMMU)
-	map_entry_t e, *f;
-
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
-	e.vaddr = (void *)ptr;
-	e.size = size;
-
-	(void)proc_lockSet(&proc->mapp->lock);
-	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->mapp->tree, &e.linkage));
-	if ((f == NULL) && (proc->imapp != NULL)) {
-		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->imapp->tree, &e.linkage));
+	ret = map_belongs(proc->mapp, ptr, size);
+	if (ret < 0) {
+		ret = map_belongs(proc->imapp, ptr, size);
 	}
 
-#if 0 /* NOMMU */
-	if (f->process != proc) {
-		(void)proc_lockClear(&proc->mapp->lock);
-		return -1;
-	}
-#endif
-
-	(void)proc_lockClear(&proc->mapp->lock);
-
-	if (f == NULL) {
-		return -1;
-	}
-
-#endif
-	return 0;
-}
-
-
-int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
-{
-	int ret;
-
-	ret = map_belongs(proc, ptr, size);
 	LIB_ASSERT_VM(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
+#else
+	(void)map_belongs;
+	ret = 0;
+#endif
 
 	return ret;
 }
