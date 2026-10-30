@@ -82,7 +82,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 		wctx->fp = (ptr_t)ustack;
 		ctx->psr = (PSR_S | PSR_ET) & (~PSR_CWP);
-		ctx->g7 = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+		ctx->g7 = tls->tls_base + tls->self_ptr_offs;
 	}
 	else {
 		ctx = (cpu_context_t *)((ptr_t)kstack + kstacksz - sizeof(cpu_context_t) - sizeof(cpu_winContext_t));
@@ -314,7 +314,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	__asm__ volatile("mov %0, %%g7" ::"r"(tls->tls_base + tls->tbss_sz + tls->tdata_sz));
+	__asm__ volatile("mov %0, %%g7" ::"r"(tls->tls_base + tls->self_ptr_offs));
 }
 
 

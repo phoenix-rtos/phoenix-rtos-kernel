@@ -905,26 +905,15 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
 
-	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
-		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
-		if (err != EOK) {
-			vm_kfree(t->kstack);
-			vm_kfree(t);
-			return err;
-		}
-	}
-	else {
-		t->tls.tls_base = 0;
-		t->tls.tdata_sz = 0;
-		t->tls.tbss_sz = 0;
-		t->tls.tls_sz = 0;
-		t->tls.arm_m_tls = 0;
+	err = process_tlsInit(process, &t->tls);
+	if (err != EOK) {
+		vm_kfree(t->kstack);
+		vm_kfree(t);
+		return err;
 	}
 
 	if (thread_alloc(t) < 0) {
-		if (t->tls.tls_sz != 0U) {
-			(void)process_tlsDestroy(&t->tls, process->mapp);
-		}
+		process_tlsDestroy(process, &t->tls);
 		vm_kfree(t->kstack);
 		vm_kfree(t);
 		return -ENOMEM;
@@ -1632,8 +1621,8 @@ int proc_join(int tid, time_t timeout)
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	if ((ghost != NULL) && (ghost->tls.tls_sz != 0U)) {
-		(void)process_tlsDestroy(&ghost->tls, process->mapp);
+	if (ghost != NULL) {
+		process_tlsDestroy(process, &ghost->tls);
 	}
 
 	vm_kfree(ghost);
@@ -2011,7 +2000,7 @@ int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sig
 	/* allocate sigactions array if required */
 	if ((act != NULL) && (process->sigactions == NULL) && (act->sa_handler != SIG_DFL)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-		sa = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+		sa = vm_kmallocObjects((size_t)(NSIG - 1), sizeof(struct sigaction), 0U);
 		if (sa == NULL) {
 			return -ENOMEM;
 		}
@@ -2078,7 +2067,7 @@ int proc_cloneSigactions(process_t *parent, process_t *child)
 			}
 
 			hal_spinlockClear(&threads_common.spinlock, &sc);
-			child->sigactions = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			child->sigactions = vm_kmallocObjects((size_t)(NSIG - 1), sizeof(struct sigaction), 0U);
 			if (child->sigactions == NULL) {
 				return -ENOMEM;
 			}
@@ -3358,14 +3347,14 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	/* Allocate and initialize current threads array */
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is always the same, false positive" */
-	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * ncpus);
+	threads_common.current = (thread_t **)vm_kmallocObjects(ncpus, sizeof(thread_t *), 0U);
 	if (threads_common.current == NULL) {
 		return -ENOMEM;
 	}
 
 #ifdef CPUTIME_SPLIT_ENABLE
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is always the same, false positive" */
-	threads_common.cpuSpinlock = (spinlock_t *)vm_kmalloc(sizeof(spinlock_t) * ncpus);
+	threads_common.cpuSpinlock = (spinlock_t *)vm_kmallocObjects(ncpus, sizeof(spinlock_t), 0U);
 	if (threads_common.cpuSpinlock == NULL) {
 		/* TODO: implement proper panic on init failure */
 		return -ENOMEM;

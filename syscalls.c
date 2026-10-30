@@ -589,7 +589,6 @@ int syscalls_sys_cpuTime(u8 *ustack)
 int syscalls_sys_threadsinfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	size_t infosz;
 	int n, tid;
 	unsigned int flags;
 	threadinfo_t *info;
@@ -608,11 +607,7 @@ int syscalls_sys_threadsinfo(u8 *ustack)
 			return -EFAULT;
 		}
 
-		if (__builtin_mul_overflow(sizeof(*info), (size_t)n, &infosz)) {
-			return -EOVERFLOW;
-		}
-
-		if (vm_mapBelongs(proc, info, infosz) < 0) {
+		if (vm_mapBelongsObjects(proc, info, (size_t)n, sizeof(*info)) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1913,7 +1908,7 @@ ssize_t syscalls_sys_recvmsg(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongsObjects(proc, msg->msg_iov, (size_t)msg->msg_iovlen, sizeof(*msg->msg_iov)) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1951,7 +1946,7 @@ ssize_t syscalls_sys_sendmsg(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongsObjects(proc, msg->msg_iov, (size_t)msg->msg_iovlen, sizeof(*msg->msg_iov)) < 0)) {
 		return -EFAULT;
 	}
 
@@ -2091,7 +2086,7 @@ int syscalls_sys_poll(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds)) < 0) {
+	if (vm_mapBelongsObjects(proc, fds, nfds, sizeof(*fds)) < 0) {
 		return -EFAULT;
 	}
 

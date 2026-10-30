@@ -57,8 +57,8 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 int vm_objectGet(vm_object_t **o, oid_t oid)
 {
 	vm_object_t t, *no = NULL;
-	size_t i, n;
-	off_t sz;
+	size_t i, n, sz;
+	off_t szOff;
 	int err = -ENOMEM;
 
 	t.oid.port = oid.port;
@@ -71,14 +71,13 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		/* Take off the lock to avoid a deadlock in vm_kmalloc */
 		(void)proc_lockClear(&object_common.lock);
 
-		sz = proc_size(oid);
-		if (sz < 0) {
-			err = (int)sz;
+		szOff = proc_size(oid);
+		if (szOff < 0) {
+			err = (int)szOff;
 		}
-		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "size_t depends on architecture" */
-		else if ((sizeof(off_t) <= sizeof(size_t)) || (sz <= (off_t)((size_t)-1))) {
-			n = round_page((size_t)sz) / SIZE_PAGE;
-			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+		else if (!__builtin_add_overflow(szOff, 0U, &sz)) { /* Ensure `szOff` value fits into `sz` without overflow */
+			n = num_pages(sz);
+			no = (vm_object_t *)vm_kmallocObjects(n, sizeof(page_t *), sizeof(vm_object_t));
 		}
 		else {
 			/* No action required */
@@ -97,8 +96,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
 
-			/* Safe to cast - sz fits into size_t from above checks */
-			(*o)->size = (size_t)sz;
+			(*o)->size = sz;
 			(*o)->refs = 0;
 
 			for (i = 0; i < n; ++i) {
@@ -156,7 +154,7 @@ int vm_objectPut(vm_object_t *o)
 		vm_pageFree(o->pages[0]);
 	}
 	else {
-		for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
+		for (i = 0; i < num_pages(o->size); ++i) {
 			if (o->pages[i] != NULL) {
 				vm_pageFree(o->pages[i]);
 			}
@@ -291,7 +289,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
-	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+	o = vm_kmallocObjects(n, sizeof(page_t *), sizeof(vm_object_t));
 	if (o == NULL) {
 		vm_pageFree(p);
 		return NULL;
