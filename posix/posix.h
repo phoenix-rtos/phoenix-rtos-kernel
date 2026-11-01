@@ -195,4 +195,18 @@ int posix_waitpid(pid_t child, int *status, unsigned int options);
 void posix_init(void);
 
 
+static inline int posix_idTaken(int id)
+{
+	if (posix_procExists(id, 0, 0, 0U) > 0) {
+		return 1;
+	}
+
+	if (posix_procExists(0, id, 0, 0U) > 0) {
+		return 1;
+	}
+
+	return (posix_procExists(0, 0, id, 0U) > 0) ? 1 : 0;
+}
+
+
 #endif
