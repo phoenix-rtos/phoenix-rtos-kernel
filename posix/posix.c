@@ -742,7 +742,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 				(void)posix_truncate(&f->oid, 0);
 			}
 
-			f->status = (unsigned int)oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
+			f->status = (unsigned int)oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW);
 
 			pinfo_put(p);
 			return fd;
@@ -1679,7 +1679,7 @@ static int posix_fcntlSetFl(int fd, unsigned int val)
 	open_file_t *f;
 	int err;
 	/* Creation and access mode flags shall be ignored */
-	unsigned int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
+	unsigned int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY | O_NOFOLLOW;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err == 0) {
