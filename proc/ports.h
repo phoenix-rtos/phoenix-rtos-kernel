@@ -48,6 +48,9 @@ typedef struct _port_t {
 	port_queue_t queue;
 
 	thread_t *busy;
+
+	__u8 pulse;
+	__u8 pulsePending; /* a pulse arrived with no receiver waiting to take it */
 } port_t;
 
 

@@ -161,6 +161,8 @@ typedef struct _thread_t {
 			void *odata;
 		} call;
 
+		u8 pulse;
+
 		struct {
 			unsigned char raw[MSG_RAW_SIZE];
 			int err;
@@ -173,7 +175,7 @@ typedef struct _thread_t {
 	} ipc;
 
 	/* TODO: merge with ipc.flags? */
-	int flags; /* atomic: IPC_DELIVERED is set by other threads */
+	int flags; /* atomic: IPC_PULSED and IPC_DELIVERED are set by other threads */
 } thread_t;
 
 

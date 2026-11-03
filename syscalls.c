@@ -1026,6 +1026,18 @@ int syscalls_msgSend(u8 *ustack)
 }
 
 
+int syscalls_msgPulse(u8 *ustack)
+{
+	u32 port;
+	u8 pulse;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, u8, pulse, 1U);
+
+	return proc_pulse(port, pulse);
+}
+
+
 int syscalls_msgRecv(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;

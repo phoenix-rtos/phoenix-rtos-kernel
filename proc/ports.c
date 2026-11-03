@@ -515,6 +515,8 @@ int proc_portCreate(u32 *id)
 	port->refs = 1;
 	port->closed = 0;
 
+	port->pulse = 0;
+	port->pulsePending = 0;
 	port->owner = proc;
 
 	hal_memset(&port->queue, 0, sizeof(port->queue));

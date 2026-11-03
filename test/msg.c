@@ -187,6 +187,7 @@ void test_msg(void)
 
 #define TEST_PORT_SERVED_MAX     8
 #define TEST_PORT_STRESS_ITERS   150
+#define TEST_PORT_STRESS_PULSES  50
 #define TEST_PORT_TEARDOWN_ITERS 200
 #define TEST_PORT_CLOSE_RECVS    2
 #define TEST_PORT_REFS_CLIENTS   4
@@ -197,6 +198,7 @@ static struct {
 	unsigned int order;
 	unsigned int busy;
 	unsigned int stress;
+	unsigned int pulse;
 	unsigned int teardown;
 	unsigned int close;
 	unsigned int refs;
@@ -208,6 +210,7 @@ static struct {
 	thread_t *dying;
 	thread_t *client[3];
 
+	volatile unsigned int pulses;
 	volatile unsigned int clientsDone;
 	volatile unsigned int teardownDone;
 	volatile unsigned int closeWaiting;
@@ -422,7 +425,8 @@ static void test_port_busyBoost(void)
  * Scenario 3: stress. Several senders at mixed priorities against two
  * receivers of one port, some of them holding a mutex across the call while
  * another thread contends it - that chains a lock donation through a sender
- * that is itself waiting on a port. Driven by the assertions in
+ * that is itself waiting on a port. Plus pulses, which take a parked receiver
+ * off the same queue the senders wait on. Driven by the assertions in
  * proc/threads.c: any invariant that breaks panics the kernel.
  */
 
@@ -492,14 +496,43 @@ static void test_port_stressContender(void *arg)
 }
 
 
+static void test_port_pulseRecv(void *arg)
+{
+	msg_t msg;
+	msg_rid_t rid;
+
+	for (;;) {
+		if (proc_recv(test_port_common.pulse, &msg, &rid) == -EPULSE) {
+			test_port_common.pulses++;
+		}
+	}
+}
+
+
+static void test_port_pulseSend(void *arg)
+{
+	unsigned int i;
+
+	for (i = 0; i < TEST_PORT_STRESS_PULSES; i++) {
+		(void)proc_pulse(test_port_common.pulse, (u8)i);
+		proc_threadSleep(2000);
+	}
+
+	proc_threadEnd();
+}
+
+
 static void test_port_stressChecker(void *arg)
 {
 	proc_threadSleep(6000000);
 
-	lib_printf("test: [port.stress] %u of 6 clients done\n", test_port_common.clientsDone);
+	lib_printf("test: [port.stress] %u of 6 clients done, %u pulses received\n",
+			test_port_common.clientsDone, test_port_common.pulses);
 
 	LIB_ASSERT_ALWAYS(test_port_common.clientsDone == 6,
 			"STRESS FAILED: %u of 6 clients finished", test_port_common.clientsDone);
+	LIB_ASSERT_ALWAYS(test_port_common.pulses == TEST_PORT_STRESS_PULSES,
+			"STRESS FAILED: %u of %u pulses received", test_port_common.pulses, TEST_PORT_STRESS_PULSES);
 
 	lib_printf("test: [port.stress] PASSED\n");
 
@@ -511,7 +544,7 @@ static void test_port_stressRun(void)
 {
 	unsigned long id;
 
-	if (proc_portCreate(&test_port_common.stress) != EOK) {
+	if ((proc_portCreate(&test_port_common.stress) != EOK) || (proc_portCreate(&test_port_common.pulse) != EOK)) {
 		lib_printf("test: [port.stress] could not create a port\n");
 		return;
 	}
@@ -526,6 +559,9 @@ static void test_port_stressRun(void)
 	}
 
 	proc_threadCreate(NULL, test_port_stressContender, NULL, 2, 2048, NULL, 0, 0, NULL);
+
+	proc_threadCreate(NULL, test_port_pulseRecv, NULL, 6, 2048, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_port_pulseSend, NULL, 7, 2048, NULL, 0, 0, NULL);
 
 	proc_threadCreate(NULL, test_port_stressChecker, NULL, 0, 2048, NULL, 0, 0, NULL);
 }
