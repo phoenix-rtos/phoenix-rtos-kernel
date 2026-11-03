@@ -939,7 +939,8 @@ void test_msg_port(void)
  * to be able to exit.
  *
  * Kernel threads only notice a kill by checking exit themselves, so workers
- * do it after every IPC call.
+ * do it after every IPC call. Forwarding is left out: a forwarded kernel
+ * thread would never consume its fastpathExitCtx.
  */
 
 

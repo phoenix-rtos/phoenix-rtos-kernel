@@ -36,6 +36,9 @@ typedef enum {
 int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, unsigned char *oraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
+int xfer_forward(thread_t *caller, thread_t *recv, thread_t *forward, msg_t *msg);
+
+
 size_t xfer_end(thread_t *caller, size_t osize);
 
 

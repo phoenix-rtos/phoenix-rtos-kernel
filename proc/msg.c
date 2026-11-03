@@ -236,6 +236,92 @@ int proc_send_returnable(u32 port, msg_t *msg)
 }
 
 
+static void _msgHandOver(thread_t *forward, const msg_t *msg, msg_rid_t rid)
+{
+	/* same aspace, we can copy directly */
+	hal_memcpy(forward->ipc.msgPtr, msg, sizeof(*msg));
+	*forward->ipc.ridPtr = rid;
+
+	(void)__atomic_fetch_or(&forward->flags, IPC_DELIVERED, __ATOMIC_RELEASE);
+	forward->fastpathExitCtx = _threads_getUserContext(forward);
+	hal_cpuSetReturnValue(forward->fastpathExitCtx, EOK);
+
+	trace_eventSyscallExit(forward->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(forward));
+}
+
+
+int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
+{
+	thread_t *recv = proc_current();
+	thread_t *caller, *forward;
+	sched_context_t *donated;
+	spinlock_ctx_t tsc;
+	port_t *p;
+	int err;
+
+	err = port_claim(port, recv, 0, &p, &forward);
+	if (err < 0) {
+		return err;
+	}
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	caller = (forward->process == recv->process) ? _ridToReply(rid, recv) : NULL;
+	if (caller == NULL) {
+		_portReturnReceiver(p, forward);
+	}
+
+	hal_spinlockClear(&threads_spinlock, &tsc);
+
+	if (caller == NULL) {
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
+	err = xfer_forward(caller, recv, forward, msg);
+	if (err < 0) {
+		hal_spinlockSet(&threads_spinlock, &tsc);
+		_portReturnReceiver(p, forward);
+		hal_spinlockClear(&threads_spinlock, &tsc);
+		port_put(p, 0);
+		return err;
+	}
+
+	_msgHandOver(forward, msg, rid);
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	donated = caller->scPushed;
+
+	/* TODO: optimize these */
+	_proc_clearReplyChain(caller);
+	_sc_return(recv, caller);
+	_setReplyChain(caller, forward);
+	_sc_donate(caller, forward, donated);
+
+	caller->state = BLOCKED_ON_REPLY;
+	forward->state = READY;
+
+	/* could have changed as part of _sc_return */
+	_threads_setCurrent(recv);
+
+	if (forward->onReady == 0U) {
+		_threads_readyAdd(forward);
+	}
+
+	if (forward->priority < recv->priority) {
+		hal_cpuReschedule(&threads_spinlock, &tsc);
+	}
+	else {
+		hal_spinlockClear(&threads_spinlock, &tsc);
+	}
+
+	port_put(p, 0);
+
+	return EOK;
+}
+
+
 /*
  * Assumes p->spinlock is set with sc and consumes the port reference,
  * because this frame is abandoned on a fastpath delivery.
