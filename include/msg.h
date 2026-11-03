@@ -118,6 +118,8 @@ typedef struct {
 
 
 typedef struct {
+	__u8 pulse;
+
 	union {
 		/* ATTR */
 		struct {

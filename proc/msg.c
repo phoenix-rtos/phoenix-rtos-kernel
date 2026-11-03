@@ -18,6 +18,7 @@
 #include "perf/trace-events.h"
 
 
+#define IPC_PULSED    1
 #define IPC_DELIVERED 2
 
 
@@ -254,7 +255,7 @@ static int _recvWait(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 
 	hal_spinlockSet(&threads_spinlock, &tsc);
 
-	(void)__atomic_fetch_and(&recv->flags, ~(int)IPC_DELIVERED, __ATOMIC_RELAXED);
+	(void)__atomic_fetch_and(&recv->flags, ~(int)(IPC_PULSED | IPC_DELIVERED), __ATOMIC_RELAXED);
 
 	/* Must run before scActive is cleared */
 	_portReturnReceiver(p, recv);
@@ -271,7 +272,13 @@ static int _recvWait(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 
 	/* WARN: unreachable if recv is woken in fastpath proc_send switch */
 
-	flags = __atomic_fetch_and(&recv->flags, ~(int)IPC_DELIVERED, __ATOMIC_ACQUIRE);
+	flags = __atomic_fetch_and(&recv->flags, ~(int)(IPC_PULSED | IPC_DELIVERED), __ATOMIC_ACQUIRE);
+
+	if ((flags & IPC_PULSED) != 0) {
+		recv->ipc.msgPtr->o.pulse = recv->ipc.pulse;
+		recv->ipc.msgPtr->o.err = EOK;
+		return -EPULSE;
+	}
 
 	return ((flags & IPC_DELIVERED) != 0) ? EOK : -EINTR;
 }
@@ -294,6 +301,17 @@ static int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
 		return -EINVAL;
 	}
 
+	if (p->pulsePending != 0U) {
+		msg->o.pulse = p->pulse;
+		msg->o.err = EOK;
+		p->pulsePending = 0;
+
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
+		return -EPULSE;
+	}
+
 	recv->respondAndRecv = rr;
 
 	return _recvWait(p, recv, &sc);
@@ -305,6 +323,49 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	port_t *p = proc_portGet(port);
 
 	return (p == NULL) ? -EINVAL : proc_recv_ex(p, msg, rid, 0);
+}
+
+
+int proc_pulse(u32 port, u8 pulse)
+{
+	spinlock_ctx_t sc, tsc;
+	thread_t *recv;
+	port_t *p;
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	recv = _portWaitingReceiver(p);
+	if (recv != NULL) {
+		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
+
+		_wakeReceiver(recv);
+		recv->ipc.pulse = pulse;
+		(void)__atomic_fetch_or(&recv->flags, IPC_PULSED, __ATOMIC_RELEASE);
+	}
+	else {
+		/* stick the pulse to the port for late receivers */
+		p->pulse = pulse;
+		p->pulsePending = 1;
+	}
+
+	hal_spinlockClear(&threads_spinlock, &tsc);
+
+	if ((recv != NULL) && (recv->priority < proc_current()->priority)) {
+		hal_cpuReschedule(&p->spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&p->spinlock, &sc);
+	}
+
+	port_put(p, 0);
+
+	return EOK;
 }
 
 

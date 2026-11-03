@@ -696,6 +696,8 @@ static void _threads_copyMsgBufResponse(thread_t *t)
 	t->ipc.msgPtr->o.size = t->ipc.reply.size;
 	hal_memcpy(t->ipc.msgPtr->o.raw, t->ipc.reply.raw, MSG_RAW_SIZE);
 	t->ipc.msgPtr->o.err = t->ipc.reply.err;
+
+	/* TODO: handle pulse as well? */
 }
 
 

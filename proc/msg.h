@@ -38,6 +38,9 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 
 
+int proc_pulse(u32 port, u8 pulse);
+
+
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 

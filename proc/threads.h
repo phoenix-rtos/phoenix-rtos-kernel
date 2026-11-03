@@ -162,6 +162,8 @@ typedef struct _thread_t {
 			void *odata;  /* caller's o.data */
 		} call;
 
+		u8 pulse;
+
 		/* the response header, copied to msgPtr->o once in this thread's aspace */
 		struct {
 			unsigned char raw[MSG_RAW_SIZE];
@@ -175,7 +177,7 @@ typedef struct _thread_t {
 	} ipc;
 
 	/* TODO: merge with ipc.flags? */
-	int flags; /* atomic: IPC_DELIVERED is set by other threads */
+	int flags; /* atomic: IPC_PULSED and IPC_DELIVERED are set by other threads */
 } thread_t;
 
 
