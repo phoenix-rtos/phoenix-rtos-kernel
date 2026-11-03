@@ -150,6 +150,7 @@ static void _portClaim(port_t *p, thread_t *recv)
 	recv->state = BLOCKED_ON_RECV;
 	recv->interruptible = 0;
 
+	/* for _portBoost() */
 	recv->busyPort = p;
 	LIST_ADD_EX(&p->busy, recv, bnext, bprev);
 }
@@ -170,6 +171,7 @@ void _portReturnReceiver(port_t *p, thread_t *recv)
 	_portClaim(p, recv);
 	client->granted = recv;
 
+	_sc_reclaim(client);
 	_proc_threadDequeue(client);
 }
 
@@ -179,6 +181,44 @@ void _portReleaseDying(thread_t *recv)
 	_portBusyRemove(recv);
 	_threads_setActiveSc(recv, _sc_best(recv));
 	_proc_threadDequeue(recv);
+}
+
+
+static void _portBoost(port_t *p, thread_t *caller)
+{
+	thread_t *recv = NULL, *t = p->busy;
+
+	if (t == NULL) {
+		return;
+	}
+
+	do {
+		if ((t->exit == 0U) && (t->state != GHOST) && ((recv == NULL) || (t->priority > recv->priority)) &&
+				(_sc_reaches(t, caller) == 0)) {
+			recv = t;
+		}
+		t = t->bnext;
+	} while (t != p->busy);
+
+	if (recv != NULL) {
+		_sc_blockOnRecv(caller, recv);
+		_sc_donate(caller, recv, caller->scActive);
+	}
+}
+
+
+void _portDropBoosts(thread_t *recv)
+{
+	thread_t *t;
+
+	while ((t = recv->boosters) != NULL) {
+		/* clears the WAIT_RECV edge, which takes the sender off the list */
+		_sc_reclaim(t);
+
+		if (t->waitPort != NULL) {
+			_portBoost(t->waitPort, t);
+		}
+	}
 }
 
 
@@ -248,6 +288,8 @@ static int _portWait(port_t *p, thread_t *caller, int kernel, spinlock_ctx_t *sc
 	_portQueueAdd(p, caller, PORT_QUEUE_SEND(caller->priority), BLOCKED_ON_SEND,
 			(kernel != 0) ? (_proc_gettimeRaw() + PORT_KERNEL_RECHECK_US) : 0);
 	_threads_enqueued(caller);
+
+	_portBoost(p, caller);
 
 	/* tsc and scp are swapped intentionally, we need to enable interrupts */
 	hal_spinlockClear(&p->spinlock, &tsc);
@@ -335,6 +377,7 @@ static void _portWakeAll(port_t *p)
 
 	for (slot = PORT_QUEUE_SEND(0); slot < PORT_QUEUE_SLOTS; slot++) {
 		while ((t = p->queue.slot[slot]) != NULL) {
+			_sc_reclaim(t);
 			_proc_threadDequeue(t);
 		}
 	}

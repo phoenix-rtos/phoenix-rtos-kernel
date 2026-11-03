@@ -50,12 +50,26 @@ void _sc_recalculate(thread_t *t)
 }
 
 
+void _sc_blockOnRecv(thread_t *t, thread_t *recv)
+{
+	_thread_setBlocked(t, WAIT_RECV, recv);
+	LIST_ADD_EX(&recv->boosters, t, boostNext, boostPrev);
+}
+
+
 static void _sc_unblock(thread_t *t)
 {
+	thread_t *recv = _thread_waitingRecv(t);
+
+	if (recv != NULL) {
+		LIST_REMOVE_EX(&recv->boosters, t, boostNext, boostPrev);
+	}
+
 	/*
 	 * WAIT_CALL cleared by _proc_clearReplyChain(), which has to unlink the
 	 * callee's reply list atomically.
 	 */
+	_thread_clearBlocked(t, WAIT_RECV);
 	_thread_clearBlocked(t, WAIT_LOCK);
 	_thread_clearBlocked(t, WAIT_REAP);
 }
@@ -68,6 +82,7 @@ thread_t *_sc_blockedOn(thread_t *t)
 			LIB_ASSERT_ALWAYS(t->blockedOn != NULL, "tid %d: WAIT_LOCK with no lock", proc_getTid(t));
 			return ((lock_t *)t->blockedOn)->owner;
 
+		case WAIT_RECV:
 		case WAIT_CALL:
 		case WAIT_REAP:
 			LIB_ASSERT_ALWAYS(t->blockedOn != NULL, "tid %d: WAIT kind %u with no target",

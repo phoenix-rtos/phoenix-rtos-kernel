@@ -47,7 +47,7 @@ typedef struct _port_t {
 
 	port_queue_t queue;
 
-	thread_t *busy; /* Receivers handling a message from this port */
+	thread_t *busy;
 } port_t;
 
 
@@ -85,6 +85,9 @@ void _portSenderRequeue(thread_t *t, u8 priority);
 
 
 void _portBusyRemove(thread_t *t);
+
+
+void _portDropBoosts(thread_t *recv);
 
 
 thread_t *_portWaitingReceiver(port_t *p);

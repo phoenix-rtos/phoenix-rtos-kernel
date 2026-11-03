@@ -524,6 +524,8 @@ static void thread_destroy(thread_t *thread)
 	/* may still be sleeping on a port's queue */
 	_proc_threadUnlink(thread);
 
+	/* SCs donated by waiting senders belong to threads that still wait */
+	_portDropBoosts(thread);
 	_portBusyRemove(thread);
 
 	if ((thread->granted != NULL) && (thread->granted->busyPort != NULL)) {
@@ -1032,6 +1034,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->prioceilingLocks = 0;
 	t->blockedOn = NULL;
 	t->blockedKind = WAIT_NOTHING;
+	t->boosters = NULL;
+	t->boostNext = NULL;
+	t->boostPrev = NULL;
 	t->scPushed = NULL;
 	t->waitPort = NULL;
 	t->busyPort = NULL;
