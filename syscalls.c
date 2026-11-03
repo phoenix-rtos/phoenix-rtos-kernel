@@ -1394,7 +1394,7 @@ int syscalls_sys_open(u8 *ustack)
 	GETFROMSTACK(ustack, int, oflag, 1U);
 	/* NOTE: `posix_open` may take additional arguments from ustack */
 
-	return posix_open(filename, oflag, ustack);
+	return posix_open(filename, (unsigned int)oflag, ustack);
 }
 
 
