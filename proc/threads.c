@@ -24,6 +24,7 @@
 #include "xfer.h"
 #include "ports.h"
 #include "perf/trace-events.h"
+#include "perf/trace-msg.h"
 
 #include "syscalls.h"
 
@@ -876,13 +877,14 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	thread_t *current, *selected = NULL;
 	sched_context_t *sched;
 	unsigned int i;
-	unsigned int cpuId = hal_cpuGetID();
+	int cpuId = hal_cpuGetID();
+	u32 tsc;
 
 	(void)arg;
 	(void)n;
 	hal_lockScheduler();
 
-	trace_eventSchedEnter(cpuId);
+	tsc = trace_eventSchedEnter(cpuId);
 
 	current = _proc_current();
 	threads_common.currentSc[cpuId] = NULL;
@@ -954,7 +956,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
 
-	trace_eventSchedExit(cpuId);
+	trace_eventSchedExit(cpuId, tsc);
 
 	return EOK;
 }
