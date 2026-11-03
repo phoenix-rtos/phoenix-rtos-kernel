@@ -42,8 +42,6 @@
 #define GHOST 2U
 
 typedef struct _thread_t {
-	struct _thread_t *next;
-	struct _thread_t *prev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
@@ -52,6 +50,13 @@ typedef struct _thread_t {
 	struct _process_t *process;
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
+
+	/* TODO lots of pointers... maybe it'd possible to optimize this? */
+	struct _thread_t *qnext;
+	struct _thread_t *qprev;
+
+	struct _thread_t *gnext; /* threads_common.ghosts linkage */
+	struct _thread_t *gprev;
 
 	int refs;
 	struct _thread_t *blocking;
