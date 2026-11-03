@@ -1009,11 +1009,17 @@ int syscalls_msgSend(u8 *ustack)
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->i.size = 0;
+	}
 
 	if (msg->o.data != NULL) {
 		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
 			return -EFAULT;
 		}
+	}
+	else {
+		msg->o.size = 0;
 	}
 
 	return proc_send(port, msg);
@@ -1063,6 +1069,9 @@ int syscalls_msgRespond(u8 *ustack)
 		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
 			return -EFAULT;
 		}
+	}
+	else {
+		msg->o.size = 0;
 	}
 #endif
 
