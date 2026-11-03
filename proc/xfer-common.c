@@ -153,6 +153,22 @@ int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, 
 }
 
 
+int xfer_forward(thread_t *caller, thread_t *recv, thread_t *forward, msg_t *msg)
+{
+	(void)recv;
+
+	/* the payload is handed over with msg, it only has to point into forward's copy */
+	if (caller->ipc.call.ikind == msg_xfer_raw) {
+		msg->i.data = &forward->ipc.msgPtr->i.raw[caller->ipc.call.irawofs];
+	}
+	if (caller->ipc.call.okind == msg_xfer_raw) {
+		msg->o.data = &forward->ipc.msgPtr->o.raw[caller->ipc.call.orawofs];
+	}
+
+	return EOK;
+}
+
+
 size_t xfer_end(thread_t *caller, size_t osize)
 {
 	size_t size = min(osize, caller->ipc.call.osize);

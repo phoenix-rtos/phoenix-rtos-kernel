@@ -49,6 +49,10 @@ typedef enum {
 int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, unsigned char *oraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
+/* Points msg at forward's copy of the call's data, before recv passes msg on to forward. */
+int xfer_forward(thread_t *caller, thread_t *recv, thread_t *forward, msg_t *msg);
+
+
 /*
  * Writes back the output, at most the caller's o.size of it, and releases the call.
  * Returns the size written back.
