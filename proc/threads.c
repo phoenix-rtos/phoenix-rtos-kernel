@@ -46,8 +46,9 @@ spinlock_t threads_spinlock;
 static struct {
 	vm_map_t *kmap;
 	lock_t lock;
-	thread_t *ready[NPRIOS];
-	thread_t **current;
+	sched_context_t *ready[NPRIOS];
+	sched_context_t **currentSc;
+	thread_t **currentThread;
 	time_t utcoffs;
 
 	u32 readyNonempty; /* bit per priority, NPRIOS <= 32 */
@@ -123,14 +124,16 @@ static void _threads_updateWaits(thread_t *t, int type)
 
 	now = _proc_gettimeRaw();
 
+	LIB_ASSERT_ALWAYS(t->scActive != NULL, "attempted to update unschedulable thread (type=%d)", type);
+
 	if (type == event_waking || type == event_preempted) {
-		t->readyTime = now;
+		t->scActive->readyTime = now;
 	}
 	else if (type == event_scheduling) {
-		wait = now - t->readyTime;
+		wait = now - t->scActive->readyTime;
 
-		if (t->maxWait < wait) {
-			t->maxWait = wait;
+		if (t->scActive->maxWait < wait) {
+			t->scActive->maxWait = wait;
 		}
 	}
 	else {
@@ -253,16 +256,54 @@ static void _threads_readyAdd(thread_t *t)
 {
 	unsigned int prio = t->priority;
 
-	LIST_ADD(&threads_common.ready[prio], t);
+	/* LIST_ADD() of NULL is a no-op, readyNonempty would be set for an empty list */
+	LIB_ASSERT(t->scActive != NULL, "queueing an unschedulable thread: tid=%d st=%u",
+			proc_getTid(t), t->state);
+	LIB_ASSERT(t->onReady == 0U, "queueing a thread that is queued already: tid=%d st=%u",
+			proc_getTid(t), t->state);
+
+	LIST_ADD(&threads_common.ready[prio], t->scActive);
 	threads_common.readyNonempty |= (1UL << prio);
+	t->onReady = 1;
 }
 
 
-static void _readyRemove(thread_t *t, unsigned int prio)
+static void _readyRemoveSc(sched_context_t *sched, unsigned int prio)
 {
-	LIST_REMOVE(&threads_common.ready[prio], t);
+	LIST_REMOVE(&threads_common.ready[prio], sched);
 	if (threads_common.ready[prio] == NULL) {
 		threads_common.readyNonempty &= ~(1UL << prio);
+	}
+}
+
+
+static void _readyRemove(thread_t *t)
+{
+	_readyRemoveSc(t->scActive, t->priority);
+	t->onReady = 0;
+}
+
+
+/* Returns 1 if t was already on ready queue. */
+static int _readyUnlink(thread_t *t)
+{
+	int queued = (t->onReady != 0U) ? 1 : 0;
+
+	if (queued != 0) {
+		LIB_ASSERT(LIST_BELONGS(&threads_common.ready[t->priority], t->scActive) != 0,
+				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
+				t, proc_getTid(t), t->priority);
+		_readyRemove(t);
+	}
+
+	return queued;
+}
+
+
+static void _readyRelink(thread_t *t, int queued)
+{
+	if (queued != 0) {
+		_threads_readyAdd(t);
 	}
 }
 
@@ -302,6 +343,7 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
+	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
 
 	process = thread->process;
@@ -375,13 +417,14 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
 	time_t now = _proc_gettimeRaw();
 
-	if (current != NULL) {
-		current->cpuTime += now - current->lastTime;
-		current->lastTime = now;
+	if (current != NULL && current->scActive != NULL) {
+		current->scActive->cpuTime += now - current->scActive->lastTime;
+		current->scActive->lastTime = now;
 	}
 
 	if (selected != NULL && current != selected) {
-		selected->lastTime = now;
+		LIB_ASSERT(selected->scActive != NULL, "selected thread is unschedulable?");
+		selected->scActive->lastTime = now;
 	}
 }
 
@@ -407,6 +450,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected = NULL;
+	sched_context_t *sched;
 	unsigned int i;
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
@@ -419,7 +463,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	trace_eventSchedEnter(cpuId);
 
 	current = _proc_current();
-	threads_common.current[cpuId] = NULL;
+	threads_common.currentSc[cpuId] = NULL;
+	threads_common.currentThread[cpuId] = NULL;
 
 	/* Save current thread context */
 	if (current != NULL) {
@@ -435,10 +480,16 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Get next thread */
 	i = _readyMin();
 	while (i < NPRIOS) {
-		selected = threads_common.ready[i];
-		LIB_ASSERT(selected != NULL, "ready list empty despite its bit?");
+		sched = threads_common.ready[i];
+		LIB_ASSERT(sched != NULL, "sched null despite ctz?");
+		LIB_ASSERT(sched->t != NULL, "dangling scheduling context");
 
-		_readyRemove(selected, i);
+		_readyRemoveSc(sched, i);
+		sched->t->onReady = 0;
+
+		LIB_ASSERT(sched->t->scActive != NULL, "sched points to unschedulable thread");
+
+		selected = sched->t;
 
 		if (selected->exit == 0U) {
 			break;
@@ -460,7 +511,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
 
 	if (selected != NULL) {
-		threads_common.current[hal_cpuGetID()] = selected;
+		threads_common.currentSc[hal_cpuGetID()] = selected->scActive;
+		threads_common.currentThread[hal_cpuGetID()] = selected;
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 		selCtx = selected->context;
 
@@ -536,7 +588,7 @@ static thread_t *_proc_current(void)
 {
 	thread_t *current;
 
-	current = threads_common.current[hal_cpuGetID()];
+	current = threads_common.currentThread[hal_cpuGetID()];
 
 	return current;
 }
@@ -631,16 +683,35 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
-	t->stick = 0;
-	t->utick = 0;
+
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->cpuTime = 0;
-	proc_gettime(&t->readyTime, NULL);
-	t->maxWait = 0;
-	t->startTime = t->readyTime;
-	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
+	t->scOwn = vm_kmalloc(sizeof(sched_context_t));
+	if (t->scOwn == NULL) {
+		vm_kfree(t->kstack);
+		vm_kfree(t);
+		return -ENOMEM;
+	}
+	t->scOwn->cpuTime = 0;
+	t->scOwn->maxWait = 0;
+	t->scOwn->t = t;
+	t->scOwn->next = NULL;
+	t->scOwn->prev = NULL;
+	proc_gettime(&t->scOwn->startTime, NULL);
+	t->scOwn->lastTime = t->scOwn->startTime;
+	t->scOwn->owner = t;
+	t->scOwn->priority = priority;
+	t->scOwn->priorityBase = priority;
+	t->scActive = t->scOwn;
+	t->onReady = 0;
+
+	if (thread_alloc(t) < 0) {
+		vm_kfree(t->scActive);
+		vm_kfree(t->kstack);
+		vm_kfree(t);
+		return -ENOMEM;
+	}
 
 	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
@@ -656,15 +727,6 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 		t->tls.tbss_sz = 0;
 		t->tls.tls_sz = 0;
 		t->tls.arm_m_tls = 0;
-	}
-
-	if (thread_alloc(t) < 0) {
-		if (t->tls.tls_sz != 0U) {
-			(void)process_tlsDestroy(&t->tls, process->mapp);
-		}
-		vm_kfree(t->kstack);
-		vm_kfree(t);
-		return -ENOMEM;
 	}
 
 	if (id != NULL) {
@@ -748,31 +810,17 @@ static u8 _proc_threadGetPriority(thread_t *thread)
 
 static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 {
-	unsigned int i;
+	int queued;
 
 	/* Don't allow decreasing the priority below base level */
 	if (priority > thread->priorityBase) {
 		priority = thread->priorityBase;
 	}
 
-	if (thread->state == READY) {
-		for (i = 0; i < hal_cpuGetCount(); i++) {
-			if (thread == threads_common.current[i]) {
-				break;
-			}
-		}
-
-		if (i == hal_cpuGetCount()) {
-			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
-					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-					thread, proc_getTid(thread), thread->priority);
-			_readyRemove(thread, thread->priority);
-			thread->priority = priority;
-			_threads_readyAdd(thread);
-		}
-	}
-
+	queued = _readyUnlink(thread);
 	thread->priority = priority;
+	_readyRelink(thread, queued);
+
 	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
 }
 
@@ -816,6 +864,11 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 		else {
 			/* No action required */
 		}
+
+		if (t->scActive == t->scOwn) {
+			t->scActive->priority = priority;
+			t->scActive->priorityBase = t->priorityBase;
+		}
 	}
 
 	ret = (int)t->priorityBase;
@@ -849,8 +902,9 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	(void)hal_spinlockSet(&threads_spinlock, &sc);
 
 	cpu = (int)hal_cpuGetID();
-	t = threads_common.current[cpu];
-	threads_common.current[cpu] = NULL;
+	t = threads_common.currentThread[cpu];
+	threads_common.currentSc[cpu] = NULL;
+	threads_common.currentThread[cpu] = NULL;
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	(void)_proc_threadWakeup(&threads_common.reaper);
@@ -943,6 +997,8 @@ static void _proc_threadDequeue(thread_t *t)
 
 	_threads_waking(t);
 
+	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
+
 	if (t->wait != NULL) {
 		LIST_REMOVE(t->wait, t);
 	}
@@ -958,12 +1014,12 @@ static void _proc_threadDequeue(thread_t *t)
 
 	/* MOD */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
-		if (t == threads_common.current[i]) {
+		if (threads_common.currentThread[i] == t) {
 			break;
 		}
 	}
 
-	if (i == hal_cpuGetCount()) {
+	if ((i == hal_cpuGetCount()) && (t->onReady == 0U)) {
 		_threads_readyAdd(t);
 	}
 }
@@ -2146,7 +2202,7 @@ static void threads_idlethr(void *arg)
 
 void proc_threadsDump(u8 priority)
 {
-	thread_t *t;
+	sched_context_t *sched;
 	spinlock_ctx_t sc;
 
 	/* Strictly needed - no lock can be taken
@@ -2157,16 +2213,16 @@ void proc_threadsDump(u8 priority)
 	lib_printf("threads: ");
 	hal_spinlockSet(&threads_spinlock, &sc);
 
-	t = threads_common.ready[priority];
+	sched = threads_common.ready[priority];
 	do {
-		lib_printf("[%p] ", t);
-
-		if (t == NULL) {
+		if (sched == NULL) {
 			break;
 		}
 
-		t = t->next;
-	} while (t != threads_common.ready[priority]);
+		lib_printf("[%p] ", sched->t);
+
+		sched = sched->next;
+	} while (sched != threads_common.ready[priority]);
 	hal_spinlockClear(&threads_spinlock, &sc);
 
 	lib_printf("\n");
@@ -2208,19 +2264,14 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		tinfo.state = (int)t->state;
 
 		now = _proc_gettimeRaw();
-		if (now != t->startTime) {
-			tinfo.load = (int)((t->cpuTime * 1000) / (now - t->startTime));
+		if (t->scActive != NULL && now != t->scActive->startTime) {
+			tinfo.load = (int)((t->scActive->cpuTime * 1000) / (now - t->scActive->startTime));
 		}
 		else {
+			tinfo.priority = -1;
 			tinfo.load = 0;
-		}
-		tinfo.cpuTime = t->cpuTime;
-
-		if (t->state == READY && t->maxWait < now - t->readyTime) {
-			tinfo.wait = now - t->readyTime;
-		}
-		else {
-			tinfo.wait = t->maxWait;
+			tinfo.cpuTime = 0;
+			tinfo.wait = 0;
 		}
 		hal_spinlockClear(&threads_spinlock, &sc);
 
@@ -2390,14 +2441,21 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	/* Allocate and initialize current threads array */
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
-	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
-	if (threads_common.current == NULL) {
+	threads_common.currentSc = (sched_context_t **)vm_kmalloc(sizeof(sched_context_t *) * hal_cpuGetCount());
+	if (threads_common.currentSc == NULL) {
+		return -ENOMEM;
+	}
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
+	threads_common.currentThread = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
+	if (threads_common.currentThread == NULL) {
 		return -ENOMEM;
 	}
 
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
-		threads_common.current[i] = NULL;
+		threads_common.currentSc[i] = NULL;
+		threads_common.currentThread[i] = NULL;
 		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
 	}
 
