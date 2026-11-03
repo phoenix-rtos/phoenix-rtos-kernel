@@ -1079,6 +1079,40 @@ int syscalls_msgRespond(u8 *ustack)
 }
 
 
+int syscalls_msgRespondAndRecv(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+	msg_rid_t *rid;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, msg_t *, msg, 1U);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2U);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
+
+#ifndef NOMMU /* TODO: what about NOMMU? */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+	else {
+		msg->o.size = 0;
+	}
+#endif
+
+	return proc_respondAndRecv(port, msg, rid);
+}
+
+
 int syscalls_lookup(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;

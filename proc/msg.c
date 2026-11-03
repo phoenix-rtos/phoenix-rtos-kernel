@@ -195,7 +195,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	LIB_ASSERT(_proc_current() == recv, "we should be recv here");
 
-	trace_eventSyscallExit(syscall_msgRecv, proc_getTid(recv));
+	trace_eventSyscallExit(recv->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(recv));
 
 	if ((recv->process == NULL) || (returnable != 0)) {
 		/*
@@ -280,7 +280,7 @@ static int _recvWait(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 
 
 /* Consumes the port reference. Assumes the aspace of the calling thread. */
-static int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid)
+static int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
 {
 	thread_t *recv = proc_current();
 	spinlock_ctx_t sc;
@@ -296,6 +296,8 @@ static int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid)
 		return -EINVAL;
 	}
 
+	recv->respondAndRecv = rr;
+
 	return _recvWait(p, recv, &sc);
 }
 
@@ -304,7 +306,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p = proc_portGet(port);
 
-	return (p == NULL) ? -EINVAL : proc_recv_ex(p, msg, rid);
+	return (p == NULL) ? -EINVAL : proc_recv_ex(p, msg, rid, 0);
 }
 
 
@@ -390,6 +392,35 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	port_put(p, 0);
 
 	return err;
+}
+
+
+int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
+	spinlock_ctx_t sc;
+	msg_rid_t saved;
+	int err, respond;
+	port_t *p;
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	saved = *rid;
+	respond = (_ridToReply(saved, _proc_current()) != NULL) ? 1 : 0;
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	if (respond != 0) {
+		err = proc_respond_ex(p, msg, saved);
+		if ((err < 0) && (err != -EPIPE)) {
+			port_put(p, 0);
+			return err;
+		}
+	}
+
+	return proc_recv_ex(p, msg, rid, 1);
 }
 
 

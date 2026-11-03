@@ -122,6 +122,7 @@ typedef struct _thread_t {
 	unsigned int ipcInterrupted : 1;
 	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive */
 	unsigned int callReturnable : 1;
+	unsigned int respondAndRecv : 1;
 
 	/* fastpath related */
 	struct _thread_t *reply;
