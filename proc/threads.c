@@ -1074,6 +1074,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 
 	t->fastpathExitCtx = NULL;
 	t->callReturnable = 0;
+	t->respondAndRecv = 0;
 
 	t->priorityBase = priority;
 	t->priority = priority;
