@@ -23,6 +23,7 @@
 
 typedef enum {
 	msg_xfer_none = 0, /* nothing to transfer */
+	msg_xfer_raw,      /* payload fits into the raw (packable) */
 	msg_xfer_map,      /* payload pages are mapped into the receiver (fallback) */
 } msg_xfer_t;
 
@@ -32,10 +33,13 @@ typedef enum {
 } msg_side_t;
 
 
-int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
+int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, unsigned char *oraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
 size_t xfer_end(thread_t *caller, size_t osize);
+
+
+void _xfer_copyOut(thread_t *caller);
 
 
 /* Releases the call without writing anything back. */

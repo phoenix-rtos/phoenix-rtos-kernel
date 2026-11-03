@@ -154,7 +154,10 @@ typedef struct _thread_t {
 			u8 ikind;
 			u8 okind;
 			u8 replied;
+			u8 irawofs;
+			u8 orawofs;
 			size_t osize;
+			void *odata;
 		} call;
 
 		struct {

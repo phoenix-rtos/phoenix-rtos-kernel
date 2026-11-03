@@ -36,6 +36,7 @@ typedef struct {
 	oid_t oid;
 	int type;
 	unsigned char raw[MSG_RAW_SIZE];
+	unsigned char oraw[MSG_RAW_SIZE]; /* the caller's output, when it travels in o.raw */
 } msgHdr_t;
 
 
@@ -113,6 +114,10 @@ static void _msgDeliver(thread_t *caller, thread_t *recv, const msgHdr_t *hdr, v
 	hal_memcpy(out->i.raw, hdr->raw, MSG_RAW_SIZE);
 	hal_memcpy(&out->oid, &hdr->oid, sizeof(out->oid));
 
+	if (caller->ipc.call.okind == (u8)msg_xfer_raw) {
+		hal_memcpy(odata, hdr->oraw, hdr->osize);
+	}
+
 	out->i.size = hdr->isize;
 	out->i.data = idata;
 	out->o.size = hdr->osize;
@@ -145,7 +150,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 		_msgHdrRead(msg, &hdr);
 
-		err = xfer_begin(caller, recv, hdr.idata, hdr.isize, hdr.odata, hdr.osize, &idata, &odata);
+		err = xfer_begin(caller, recv, hdr.type, hdr.raw, hdr.oraw, hdr.idata, hdr.isize, hdr.odata, hdr.osize, &idata, &odata);
 		if (err < 0) {
 			hal_spinlockSet(&threads_spinlock, &tsc);
 			_portReturnReceiver(p, recv);
