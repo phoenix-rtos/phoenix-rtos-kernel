@@ -41,9 +41,10 @@ const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL, .protocol
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
 
+spinlock_t threads_spinlock;
+
 static struct {
 	vm_map_t *kmap;
-	spinlock_t spinlock;
 	lock_t lock;
 	thread_t *ready[MAX_PRIO + 1U];
 	thread_t **current;
@@ -113,7 +114,7 @@ static int _proc_threadWakeup(thread_t **queue);
 static int _proc_threadBroadcast(thread_t **queue);
 
 
-/* Note: always called with threads_common.spinlock set */
+/* Note: always called with threads_spinlock set */
 static void _threads_updateWaits(thread_t *t, int type)
 {
 	time_t now = 0, wait;
@@ -215,7 +216,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	}
 	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	now = _proc_gettimeRaw();
 
 	for (;;) {
@@ -231,7 +232,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 	_threads_updateWakeup(now, t);
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	/* Invoke scheduler */
 	return 1;
@@ -254,7 +255,7 @@ __attribute__((noreturn)) void threads_halt(void)
 	 * Take the threads spinlock and not release it - this is an attempt to stop other cores in SMP from
 	 * continuing to execute code (they should eventually hang trying to run the scheduler).
 	 */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	for (;;) {
 		hal_cpuHalt();
 	}
@@ -270,7 +271,7 @@ static void thread_destroy(thread_t *thread)
 
 	trace_eventThreadEnd(thread);
 
-	/* No need to protect thread->locks access with threads_common.spinlock */
+	/* No need to protect thread->locks access with threads_spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
@@ -279,13 +280,13 @@ static void thread_destroy(thread_t *thread)
 
 	process = thread->process;
 	if (process != NULL) {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
 		LIST_ADD_EX(&process->ghosts, thread, procnext, procprev);
 		(void)_proc_threadBroadcast(&process->reaper);
 
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 		(void)proc_put(process);
 	}
 	else {
@@ -314,14 +315,14 @@ int proc_firstThreadTid(process_t *proc)
 	spinlock_ctx_t sc;
 	int tid;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	if (proc->threads == NULL) {
 		tid = -1;
 	}
 	else {
 		tid = proc_getTid(proc->threads);
 	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return tid;
 }
@@ -364,10 +365,10 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 	spinlock_ctx_t sc;
 	thread_t *current;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	current = _proc_current();
 	current->longjmpctx = ctx;
-	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_spinlock, &sc);
 	for (;;) {
 	}
 }
@@ -496,9 +497,9 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	spinlock_ctx_t sc;
 	int ret;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	ret = _threads_schedule(n, context, arg);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return ret;
 }
@@ -519,9 +520,9 @@ thread_t *proc_current(void)
 	thread_t *current;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	current = _proc_current();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return current;
 }
@@ -557,14 +558,14 @@ void threads_canaryInit(thread_t *t, void *ustack)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	t->ustack = ustack;
 	if (t->ustack != NULL) {
 		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -649,12 +650,12 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 
 	if (process != NULL) {
 		hal_cpuSetCtxGot(t->context, process->got);
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 
 		LIST_ADD_EX(&process->threads, t, procnext, procprev);
 	}
 	else {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 	}
 
 	trace_eventThreadCreate(t);
@@ -664,7 +665,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	_threads_waking(t);
 	LIST_ADD(&threads_common.ready[priority], t);
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return EOK;
 }
@@ -760,7 +761,7 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 
 	priority = (u8)signedPriority;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	/* NOTE: -1 is used to retrieve the thread priority only */
 	if (signedPriority >= 0) {
@@ -792,10 +793,10 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 	ret = (int)t->priorityBase;
 
 	if (reschedule != 0) {
-		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_spinlock, &sc);
 	}
 	else {
-		(void)hal_spinlockClear(&threads_common.spinlock, &sc);
+		(void)hal_spinlockClear(&threads_spinlock, &sc);
 	}
 
 	trace_eventThreadPriority(proc_getTid(t), t->priority);
@@ -817,7 +818,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	int cpu;
 	spinlock_ctx_t sc;
 
-	(void)hal_spinlockSet(&threads_common.spinlock, &sc);
+	(void)hal_spinlockSet(&threads_spinlock, &sc);
 
 	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
@@ -826,7 +827,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	LIST_ADD(&threads_common.ghosts, t);
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
-	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_spinlock, &sc);
 
 	__builtin_unreachable();
 }
@@ -845,9 +846,9 @@ void proc_threadDestroy(thread_t *t)
 {
 	spinlock_ctx_t sc;
 	if (t != NULL) {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 		_proc_threadExit(t);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 	}
 }
 
@@ -857,7 +858,7 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 	thread_t *t;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	t = *threads;
 	if (t != NULL) {
 		do {
@@ -867,7 +868,7 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 			t = t->procnext;
 		} while (t != *threads);
 	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -876,13 +877,13 @@ void proc_reap(void)
 	thread_t *ghost;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	while (threads_common.ghosts == NULL) {
 		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
 	}
 	ghost = threads_common.ghosts;
 	LIST_REMOVE(&threads_common.ghosts, ghost);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	threads_put(ghost);
 }
@@ -892,11 +893,11 @@ void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	proc->mapp = map;
 	proc->pmapp = pmap;
 	proc->imapp = imap;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -978,8 +979,8 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 		return EOK;
 	}
 
-	err = hal_cpuReschedule(&threads_common.spinlock, scp);
-	(void)hal_spinlockSet(&threads_common.spinlock, scp);
+	err = hal_cpuReschedule(&threads_spinlock, scp);
+	(void)hal_spinlockSet(&threads_spinlock, scp);
 
 	return err;
 }
@@ -1002,7 +1003,7 @@ static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 		_threads_updateWakeup(now, NULL);
 	}
 
-	return hal_cpuReschedule(&threads_common.spinlock, sc);
+	return hal_cpuReschedule(&threads_spinlock, sc);
 }
 
 
@@ -1016,7 +1017,7 @@ int proc_threadSleep(time_t us)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	return _proc_threadSleep(us, _proc_gettimeRaw(), &sc);
 }
 
@@ -1033,7 +1034,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 
 	us = ((*sec) * 1000LL * 1000LL) + (((time_t)(*nsec) + 999LL) / 1000LL);
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	start = _proc_gettimeRaw();
 
@@ -1069,23 +1070,23 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 
 	LIB_ASSERT((spinlock == NULL) == (scp == NULL), "spinlock and scp must both be NULL or both be non-NULL");
 
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
+	hal_spinlockSet(&threads_spinlock, &tsc);
 
 	if (((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) && (_proc_current()->exit != 0U)) {
 		/* Waiting in this state can lead to becoming a hanging zombie */
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		hal_spinlockClear(&threads_spinlock, &tsc);
 		return -EINTR;
 	}
 
 	if (((flags & THREAD_WAIT_EXCLUSIVE) != 0U) && (*queue != NULL) && (*queue != wakeupPending)) {
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		hal_spinlockClear(&threads_spinlock, &tsc);
 		return -EBUSY;
 	}
 
 	_proc_threadEnqueue(queue, timeout, ((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) ? 1U : 0U);
 
 	if (*queue == NULL) {
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		hal_spinlockClear(&threads_spinlock, &tsc);
 		return EOK;
 	}
 
@@ -1093,7 +1094,7 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 		/* tsc and scp are swapped intentionally, we need to enable interrupts */
 		hal_spinlockClear(spinlock, &tsc);
 	}
-	err = hal_cpuReschedule(&threads_common.spinlock, rescheduleScp);
+	err = hal_cpuReschedule(&threads_spinlock, rescheduleScp);
 	if (spinlock != NULL) {
 		hal_spinlockSet(spinlock, scp);
 	}
@@ -1141,9 +1142,9 @@ int proc_threadWakeup(thread_t **queue)
 	int ret = 0;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	ret = _proc_threadWakeup(queue);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 	return ret;
 }
 
@@ -1165,9 +1166,9 @@ int proc_threadBroadcast(thread_t **queue)
 	int ret = 0;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	ret = _proc_threadBroadcast(queue);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return ret;
 }
@@ -1177,12 +1178,12 @@ void proc_threadWakeupYield(thread_t **queue)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	if (_proc_threadWakeup(queue) != 0) {
-		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_spinlock, &sc);
 	}
 	else {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 	}
 }
 
@@ -1191,12 +1192,12 @@ void proc_threadBroadcastYield(thread_t **queue)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	if (_proc_threadBroadcast(queue) != 0) {
-		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_spinlock, &sc);
 	}
 	else {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 	}
 }
 
@@ -1214,12 +1215,12 @@ int proc_join(int tid, time_t timeout)
 		return -EINVAL;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	now = _proc_gettimeRaw();
 	current = _proc_current();
 	if (proc_getTid(current) == tid) {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 		return -EDEADLK;
 	}
 
@@ -1275,7 +1276,7 @@ int proc_join(int tid, time_t timeout)
 		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 		id = proc_getTid(ghost);
 	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	if ((ghost != NULL) && (ghost->tls.tls_sz != 0U)) {
 		(void)process_tlsDestroy(&ghost->tls, process->mapp);
@@ -1300,14 +1301,14 @@ void proc_gettime(time_t *raw, time_t *offs)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	if (raw != NULL) {
 		(*raw) = _proc_gettimeRaw();
 	}
 	if (offs != NULL) {
 		(*offs) = threads_common.utcoffs;
 	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -1315,9 +1316,9 @@ int proc_settime(time_t offs)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	threads_common.utcoffs = offs;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return EOK;
 }
@@ -1384,7 +1385,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	}
 	sigbit = (u32)1U << (unsigned int)sig;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	if (thread != NULL) {
 		thread->sigpend |= sigbit;
@@ -1410,12 +1411,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			 * Might happen during small window between last
 			 * thread destroy and process destroy. This process
 			 * will end anyway, no point in delivering the signal */
-			hal_spinlockClear(&threads_common.spinlock, &sc);
+			hal_spinlockClear(&threads_spinlock, &sc);
 			return -ESRCH;
 		}
 	}
 
-	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_spinlock, &sc);
 
 	return EOK;
 }
@@ -1452,7 +1453,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	void *kstackTop;
 	thread_t *thread;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	thread = _proc_current();
 
 	kstackTop = thread->kstack + thread->kstacksz;
@@ -1462,12 +1463,12 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -1480,8 +1481,8 @@ int threads_sigsuspend(unsigned int mask)
 	unsigned int oldmask;
 
 
-	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_spinlock) */
+	hal_spinlockSet(&threads_spinlock, &sc);
 	thread = _proc_current();
 
 	/* setup syscall return value - sigsuspend always returns -EINTR */
@@ -1497,7 +1498,7 @@ int threads_sigsuspend(unsigned int mask)
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}
@@ -1505,22 +1506,22 @@ int threads_sigsuspend(unsigned int mask)
 	/* Sleep forever (atomic lock release), interruptible */
 	thread_t *tqueue = NULL;
 	_proc_threadEnqueue(&tqueue, 0, 1);
-	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_spinlock, &sc);
 	/* after wakeup */
 
 	/* check for pending signals before restoring the old mask */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}
 
 	/* interrupted by signal but no sighandler installed */
 	thread->sigmask = oldmask;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	/* sigsuspend always exits with -EINTR */
 	return -EINTR;
@@ -1556,7 +1557,7 @@ static int _proc_lockObtained(thread_t *current, lock_t *lock)
 }
 
 
-/* Assumes `lock->spinlock` and `threads_common.spinlock` are set. */
+/* Assumes lock->spinlock and threads_spinlock are set. */
 static int _proc_lockTryRaw(thread_t *current, lock_t *lock)
 {
 	if (lock->attr.robust == PH_LOCK_ROBUST && lock->consistency == LOCK_NOT_RECOVERABLE) {
@@ -1616,13 +1617,13 @@ int proc_lockTry(lock_t *lock)
 	}
 
 	hal_spinlockSet(&lock->spinlock, &lsc);
-	hal_spinlockSet(&threads_common.spinlock, &tcsc);
+	hal_spinlockSet(&threads_spinlock, &tcsc);
 
 	current = _proc_current();
 
 	err = _proc_lockTry(current, lock);
 
-	hal_spinlockClear(&threads_common.spinlock, &tcsc);
+	hal_spinlockClear(&threads_spinlock, &tcsc);
 	hal_spinlockClear(&lock->spinlock, &lsc);
 
 	return err;
@@ -1647,12 +1648,12 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			_proc_threadEnqueue(&lock->queue, 0, interruptible);
 			/*
 			 * FIXME: too many spinlocks. Make current->exit atomic and shrink the
-			 * critical section of threads_common.spinlock to just the _proc_threadEnqueue()?
+			 * critical section of threads_spinlock to just the _proc_threadEnqueue()?
 			 */
 			hal_spinlockClear(&lock->spinlock, sc);
-			err = hal_cpuReschedule(&threads_common.spinlock, scp);
+			err = hal_cpuReschedule(&threads_spinlock, scp);
 			hal_spinlockSet(&lock->spinlock, scp);
-			hal_spinlockSet(&threads_common.spinlock, sc);
+			hal_spinlockSet(&threads_spinlock, sc);
 		}
 
 		if (lock->owner == current) {
@@ -1662,14 +1663,14 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 }
 
 
-/* protocol-unaware variant of `_proc_lockSet` */
+/* protocol-unaware variant of _proc_lockSet() */
 static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
 	int ret = EOK, tid;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	current = _proc_current();
 	tid = proc_getTid(current);
@@ -1690,7 +1691,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		}
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	_trace_eventLockSetExit(lock, tid, ret);
 	return ret;
@@ -1703,7 +1704,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 	spinlock_ctx_t sc;
 	int ret = EOK, tid;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	current = _proc_current();
 	tid = proc_getTid(current);
@@ -1738,7 +1739,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		}
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	_trace_eventLockSetExit(lock, tid, ret);
 	return ret;
@@ -1783,7 +1784,7 @@ int proc_lockSetInterruptible(lock_t *lock)
 }
 
 
-/* Assumes `lock->spinlock` and `threads_common.spinlock` are set. */
+/* Assumes lock->spinlock and threads_spinlock are set. */
 static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 {
 	thread_t *owner = lock->owner, *current;
@@ -1866,9 +1867,9 @@ static void proc_lockForceUnlock(lock_t *lock, int doYield)
 
 	hal_spinlockSet(&lock->spinlock, &scp);
 	if (lock->owner != NULL) {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 		ret = _proc_lockUnlock(lock, UNLOCK_FORCE);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 	}
 
 	hal_spinlockClear(&lock->spinlock, &scp);
@@ -1900,9 +1901,9 @@ static int _proc_lockClear(lock_t *lock)
 		return -EPERM;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	ret = _proc_lockUnlock(lock, UNLOCK_TRY);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return ret;
 }
@@ -2101,14 +2102,14 @@ static void threads_idlethr(void *arg)
 		log_scrubTry();
 
 		if (hal_cpuLowPowerAvail() != 0) {
-			hal_spinlockSet(&threads_common.spinlock, &sc);
+			hal_spinlockSet(&threads_spinlock, &sc);
 			wakeup = _proc_nextWakeup();
 
 			if (wakeup > (2 * SYSTICK_INTERVAL)) {
-				hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
+				hal_cpuLowPower(wakeup, &threads_spinlock, &sc);
 				continue;
 			}
-			hal_spinlockClear(&threads_common.spinlock, &sc);
+			hal_spinlockClear(&threads_spinlock, &sc);
 		}
 		hal_cpuHalt();
 	}
@@ -2121,12 +2122,12 @@ void proc_threadsDump(u8 priority)
 	spinlock_ctx_t sc;
 
 	/* Strictly needed - no lock can be taken
-	 * while threads_common.spinlock is being
+	 * while threads_spinlock is being
 	 * held! */
 	log_disable();
 
 	lib_printf("threads: ");
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 
 	t = threads_common.ready[priority];
 	do {
@@ -2138,7 +2139,7 @@ void proc_threadsDump(u8 priority)
 
 		t = t->next;
 	} while (t != threads_common.ready[priority]);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	lib_printf("\n");
 
@@ -2173,7 +2174,7 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 			tinfo.ppid = 0;
 		}
 
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_spinlock, &sc);
 		tinfo.tid = (unsigned int)proc_getTid(t);
 		tinfo.priority = (int)t->priorityBase;
 		tinfo.state = (int)t->state;
@@ -2193,7 +2194,7 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		else {
 			tinfo.wait = t->maxWait;
 		}
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_spinlock, &sc);
 
 		if (t->process != NULL) {
 			map = t->process->mapp;
@@ -2251,10 +2252,10 @@ int proc_threadsOther(thread_t *t)
 	int ret;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	/* Assumes t is not NULL and belongs to a process */
 	ret = (t->procnext != t) ? 1 : 0;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	return ret;
 }
@@ -2296,10 +2297,10 @@ int proc_schedGet(thread_t *t, sched_params_t *params)
 	spinlock_ctx_t sc;
 	int priority, priorityBase;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &sc);
 	priority = (int)t->priority;
 	priorityBase = (int)t->priorityBase;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	params->priority = priority;
 	params->priorityBase = priorityBase;
@@ -2356,7 +2357,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 
-	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
+	hal_spinlockCreate(&threads_spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */

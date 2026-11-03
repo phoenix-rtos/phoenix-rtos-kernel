@@ -199,6 +199,10 @@ void proc_threadsDump(u8 priority);
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
+/* The scheduler lock */
+extern spinlock_t threads_spinlock;
+
+
 int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
