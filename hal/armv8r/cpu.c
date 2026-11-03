@@ -274,6 +274,23 @@ void hal_cpuReboot(void)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	(void)sc;
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile(
+			"cpsid if\n\t"
+			"mov sp, %0\n\t"
+			"add sp, sp, #8\n\t"
+			"b _hal_cpuRestoreCtx\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+	__builtin_unreachable();
+}
+
+
 void _hal_cpuInit(void)
 {
 	_hal_platformInit();

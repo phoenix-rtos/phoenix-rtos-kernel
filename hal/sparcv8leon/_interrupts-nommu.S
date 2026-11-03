@@ -188,7 +188,7 @@ irq_fpu_done:
 	 *
 	 * %g2 points to the new task's context.
 	 */
-
+irq_switch:
 	mov %g0, %wim /* we don't need it now */
 	ld [%g2 + 0x08], %g1
 	nop
@@ -297,3 +297,21 @@ irq_return:
 	jmp %l1
 	rett %l2
 .size _interrupts_dispatch, . - _interrupts_dispatch
+
+
+/* void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc) */
+.global hal_endSyscall
+.type hal_endSyscall, #function
+hal_endSyscall:
+	mov %o0, %g2
+#ifdef LEON_USE_PWR
+	pwr 0, %psr
+	nop
+	nop
+	nop
+#else
+	ta 0xb
+#endif
+	ba irq_switch
+	nop
+.size hal_endSyscall, . - hal_endSyscall

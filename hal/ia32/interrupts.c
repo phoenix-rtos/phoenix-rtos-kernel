@@ -468,6 +468,21 @@ void _hal_interruptsTrace(int enable)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	(void)sc; /* TODO */
+
+	asm volatile(
+			"movl %0, %%esp\n\t"
+			"jmp interrupts_popContextUnlocked\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+
+	__builtin_unreachable();
+}
+
+
 void _hal_interruptsInit(void)
 {
 	static const u32 flags = IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;

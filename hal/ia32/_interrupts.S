@@ -84,6 +84,7 @@ interrupts_pushContext:
 .size interrupts_pushContext, .-interrupts_pushContext
 
 
+.global interrupts_popContextUnlocked
 .global interrupts_popContext
 .align 4, 0x90
 interrupts_popContext:

@@ -287,6 +287,30 @@ void pmap_switch(pmap_t *pmap)
 {
 	spinlock_ctx_t sc;
 	addr_t paddr;
+	u32 psr;
+
+	/*
+	 * The IPC fastpath switches address spaces without a trap, flush windows
+	 * of the old one or a later overflow would spill them into the new one.
+	 */
+	/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile("rd %%psr, %0" : "=r"(psr));
+	if ((psr & PSR_ET) != 0U) {
+		/* NWINDOWS - 1 saves make the overflow handler spill every other window */
+		__asm__ volatile(
+				"mov %0, %%g1\n\t"
+				"1: subcc %%g1, 1, %%g1\n\t"
+				"bne 1b\n\t"
+				" save %%sp, -96, %%sp\n\t"
+				"mov %0, %%g1\n\t"
+				"2: subcc %%g1, 1, %%g1\n\t"
+				"bne 2b\n\t"
+				" restore\n\t"
+				:
+				: "i"(NWINDOWS - 1)
+				: "g1", "memory");
+	}
+	/* parasoft-end-suppress MISRAC2012-DIR_4_3 */
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 	if (hal_srmmuGetContext() == CONTEXT_SHARED) {
