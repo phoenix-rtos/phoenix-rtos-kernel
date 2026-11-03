@@ -17,10 +17,7 @@
 #include "hal/hal.h"
 
 
-/*
- * A scheduling context (SC) is what the scheduler runs: a priority and its CPU
- * accounting. A thread owns one and runs it.
- */
+#define BWI_MAX_CHAIN_DEPTH 16
 
 
 struct _thread_t;
@@ -30,8 +27,11 @@ typedef struct _sched_context_t {
 	struct _sched_context_t *next;
 	struct _sched_context_t *prev;
 
-	struct _thread_t *t;     /* thread holding this SC now */
-	struct _thread_t *owner; /* thread it was allocated for, never changes */
+	struct _sched_context_t *dnext;
+	struct _sched_context_t *dprev;
+
+	struct _thread_t *t;
+	struct _thread_t *owner;
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
 
@@ -42,5 +42,29 @@ typedef struct _sched_context_t {
 	time_t cpuTime;
 	time_t lastTime;
 } sched_context_t;
+
+
+sched_context_t *_sc_best(struct _thread_t *t);
+
+
+struct _thread_t *_sc_blockedOn(struct _thread_t *t);
+
+
+int _sc_reaches(struct _thread_t *t, const struct _thread_t *target);
+
+
+void _sc_recalculate(struct _thread_t *t);
+
+
+void _sc_donate(struct _thread_t *from, struct _thread_t *to, sched_context_t *sc);
+
+
+void _sc_return(struct _thread_t *from, struct _thread_t *to);
+
+
+void _sc_reclaim(struct _thread_t *t);
+
+
+void _sc_migrate(struct _thread_t *from, struct _thread_t *queue, struct _thread_t *to);
 
 #endif

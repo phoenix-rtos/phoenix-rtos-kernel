@@ -231,6 +231,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 			break;
 		}
 
+		_sc_reclaim(t);
 		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
@@ -343,6 +344,14 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	/* scOwn is freed below, so it must not be left donated to someone */
+	_sc_reclaim(thread);
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	LIB_ASSERT(thread->scDonated == NULL, "all donations should be reclaimed");
+	LIB_ASSERT(thread->scOwn->t == thread, "own SC still donated?");
 	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
 
@@ -444,6 +453,56 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 
 
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
+
+
+static u8 _proc_threadCeilingPriority(thread_t *t)
+{
+	u8 prio = MAX_PRIO, c;
+	lock_t *lock = t->locks;
+	size_t locks = 0;
+
+	while (locks < t->prioceilingLocks) {
+		if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+			c = __atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
+			if (c < prio) {
+				prio = c;
+			}
+			locks++;
+		}
+		lock = lock->next;
+
+		if (lock == t->locks) {
+			break;
+		}
+	}
+
+	LIB_ASSERT(locks == t->prioceilingLocks, "prioceilingLocks miscounted");
+
+	return prio;
+}
+
+
+void _threads_setActiveSc(thread_t *t, sched_context_t *sc)
+{
+	int queued = _readyUnlink(t);
+	int prio;
+
+	LIB_ASSERT((sc != NULL) || (queued == 0), "clearing scActive of a queued thread: tid=%d st=%u ex=%u",
+			proc_getTid(t), t->state, t->exit);
+
+	t->scActive = sc;
+
+	if (t->scActive != NULL) {
+		t->scActive->t = t;
+
+		prio = min((int)t->scActive->priority, (int)_proc_threadCeilingPriority(t));
+
+		/* WARN: never derive t->priorityBase from scActive, it may be a donor's SC */
+		t->priority = (unsigned int)prio;
+	}
+
+	_readyRelink(t, queued);
+}
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
@@ -683,6 +742,10 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
+	t->prioceilingLocks = 0;
+	t->blockedOn = NULL;
+	t->blockedKind = WAIT_NOTHING;
+	t->scPushed = NULL;
 
 	t->priorityBase = priority;
 	t->priority = priority;
@@ -704,6 +767,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->scOwn->priority = priority;
 	t->scOwn->priorityBase = priority;
 	t->scActive = t->scOwn;
+	t->scDonated = NULL;
 	t->onReady = 0;
 
 	if (thread_alloc(t) < 0) {
@@ -760,51 +824,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 }
 
 
-static u8 _proc_lockGetPriority(lock_t *lock)
-{
-	u8 priority = MAX_PRIO;
-	thread_t *thread = lock->queue;
-
-	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
-		return __atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
-	}
-
-	if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT && thread != NULL) {
-		do {
-			if (thread->priority < priority) {
-				priority = thread->priority;
-			}
-			thread = thread->qnext;
-		} while (thread != lock->queue);
-	}
-
-	return priority;
-}
-
-
-static u8 _proc_threadGetLockPriority(thread_t *thread)
-{
-	u8 ret, priority = MAX_PRIO;
-	lock_t *lock = thread->locks;
-
-	if (lock != NULL) {
-		do {
-			ret = _proc_lockGetPriority(lock);
-			if (ret < priority) {
-				priority = ret;
-			}
-			lock = lock->next;
-		} while (lock != thread->locks);
-	}
-
-	return priority;
-}
-
-
 static u8 _proc_threadGetPriority(thread_t *thread)
 {
-	u8 ret = _proc_threadGetLockPriority(thread);
-	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
+	u8 ceiling = _proc_threadCeilingPriority(thread);
+	u8 scPrio = (thread->scActive != NULL) ? thread->scActive->priority : thread->priorityBase;
+	return (ceiling < scPrio) ? ceiling : scPrio;
 }
 
 
@@ -812,7 +836,8 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 {
 	int queued;
 
-	/* Don't allow decreasing the priority below base level */
+	/* Clamp against thread's own base, not scActive->priorityBase - scActive
+	 * may be a donated SC whose base belongs to the donor. */
 	if (priority > thread->priorityBase) {
 		priority = thread->priorityBase;
 	}
@@ -851,8 +876,11 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 			_proc_threadSetPriority(t, priority);
 		}
 		else if (priority > t->priority) {
-			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((t->locks == NULL) || (priority <= _proc_threadGetLockPriority(t))) {
+			/*
+			 * Set priority only if it won't degrade the priority boost (either from
+			 * SC donation or from prio ceiling)
+			 */
+			if ((priority <= _proc_threadCeilingPriority(t)) && (t->scActive == t->scOwn)) {
 				_proc_threadSetPriority(t, priority);
 
 				if (t == _proc_current()) {
@@ -871,7 +899,7 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 		}
 	}
 
-	ret = (int)t->priorityBase;
+	ret = (int)t->priority;
 
 	if (reschedule != 0) {
 		(void)hal_cpuReschedule(&threads_spinlock, &sc);
@@ -888,7 +916,14 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 
 static void _thread_interrupt(thread_t *t)
 {
+	LIB_ASSERT(t->state != READY, "interrupting a ready thread?");
+
+	/* _proc_threadDequeue() needs a schedulable thread */
+	_sc_reclaim(t);
+
+	LIB_ASSERT(t->scActive != NULL, "interrupting an unschedulable thread?");
 	_proc_threadDequeue(t);
+
 	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
 
@@ -905,6 +940,8 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	t = threads_common.currentThread[cpu];
 	threads_common.currentSc[cpu] = NULL;
 	threads_common.currentThread[cpu] = NULL;
+
+	_threads_setActiveSc(t, t->scOwn);
 	t->state = GHOST;
 	LIST_ADD_EX(&threads_common.ghosts, t, gnext, gprev);
 	(void)_proc_threadWakeup(&threads_common.reaper);
@@ -1025,6 +1062,23 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
+void _proc_threadEnqueueThread(thread_t *t, thread_t **queue, u8 state, time_t timeout, int interruptible)
+{
+	LIST_ADD_EX(queue, t, qnext, qprev);
+
+	t->state = state;
+	t->wakeup = 0;
+	t->wait = queue;
+	t->interruptible = interruptible;
+
+	if (timeout) {
+		t->wakeup = timeout;
+		lib_rbInsert(&threads_common.sleeping, &t->sleeplinkage);
+		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
+	}
+}
+
+
 static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptible)
 {
 	thread_t *current;
@@ -1036,18 +1090,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptib
 
 	current = _proc_current();
 
-	LIST_ADD_EX(queue, current, qnext, qprev);
-
-	current->state = SLEEP;
-	current->wakeup = 0;
-	current->wait = queue;
-	current->interruptible = interruptible & 0x1U;
-
-	if (timeout != 0) {
-		current->wakeup = timeout;
-		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
-	}
+	_proc_threadEnqueueThread(current, queue, SLEEP, timeout, interruptible);
 
 	_threads_enqueued(current);
 }
@@ -1665,6 +1708,9 @@ static int _proc_lockTryRaw(thread_t *current, lock_t *lock)
 	}
 
 	LIST_ADD(&current->locks, lock);
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		current->prioceilingLocks++;
+	}
 
 	return _proc_lockObtained(current, lock);
 }
@@ -1715,9 +1761,12 @@ int proc_lockTry(lock_t *lock)
 
 
 /* WARN: lock is already obtained when returning with EOK (handed off during _proc_lockUnlock()) */
-static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp)
+/*
+ * WARN: current must be captured by the caller before any SC donation and not re-derived via
+ * _proc_current(), which would resolve to the donation recipient instead.
+ */
+static int _proc_lockWaitWake(lock_t *lock, thread_t *current, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp)
 {
-	thread_t *current = _proc_current();
 	int err = EOK;
 
 	for (;;) {
@@ -1729,7 +1778,7 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			/* else: we got the lock, we shouldn't return EINTR */
 		}
 		else {
-			_proc_threadEnqueue(&lock->queue, 0, interruptible);
+			_proc_threadEnqueueThread(current, &lock->queue, SLEEP, 0, interruptible);
 			/*
 			 * FIXME: too many spinlocks. Make current->exit atomic and shrink the
 			 * critical section of threads_spinlock to just the _proc_threadEnqueue()?
@@ -1769,7 +1818,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 	}
 
 	if (ret == -EBUSY) {
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp);
+		ret = _proc_lockWaitWake(lock, current, interruptible, &sc, scp);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
 		}
@@ -1802,24 +1851,30 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		ret = _proc_lockTry(current, lock);
 	}
 
+	sched_context_t *donated = NULL;
+
 	if (ret == -EBUSY) {
 		LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
 				lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
-		/* Try to boost owner's priority for the wait phase */
-		if ((lock->attr.protocol == PH_LOCK_PROTO_INHERIT) && (current->priority < lock->owner->priority)) {
-			_proc_threadSetPriority(lock->owner, current->priority);
+		if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT) {
+			donated = current->scActive;
+			_thread_setBlocked(current, WAIT_LOCK, lock);
+			_sc_donate(current, lock->owner, donated);
+			LIB_ASSERT(current->scActive == NULL, "?");
 		}
 
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp);
+		ret = _proc_lockWaitWake(lock, current, interruptible, &sc, scp);
 		if (ret == EOK) {
+			_thread_clearBlocked(current, WAIT_LOCK);
 			ret = _proc_lockObtained(current, lock);
 		}
+		else if (_thread_waitingOn(current) != NULL) {
+			/* Could happen if exit != 0 on entry to _proc_lockWaitWake() */
+			_sc_reclaim(current);
+		}
 		else {
-			/* Lock not obtained, revert the potential priority boost */
-			if ((lock->attr.protocol == PH_LOCK_PROTO_INHERIT) && (lock->owner != NULL) && (lock->owner != current)) {
-				_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
-			}
+			/* No action required, _thread_interrupt() reclaimed the SC and cleared waitingOn */
 		}
 	}
 
@@ -1873,14 +1928,19 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 {
 	thread_t *owner = lock->owner, *current;
 	int ret = 0;
-	u8 lockPriority;
 
 	current = _proc_current();
 
 	_trace_eventLockClear(lock, proc_getTid(current));
 
-	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
-			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
+	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0,
+			"lock: %s, owner pid: %d, owner tid: %d, lock is not on the list "
+			"(current pid: %d, current tid: %d, doForceUnlock: %d, queue empty: %d, "
+			"owner scActive: %p, owner waitingOn: %p, current waitingOn: %p)",
+			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner),
+			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), doForceUnlock,
+			(lock->queue == NULL), (void *)owner->scActive, (void *)_thread_waitingOn(owner),
+			(void *)_thread_waitingOn(current));
 
 	if (doForceUnlock == UNLOCK_TRY) {
 		if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE) || (lock->attr.robust == PH_LOCK_ROBUST)) {
@@ -1918,23 +1978,51 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 	}
 
 	LIST_REMOVE(&owner->locks, lock);
+
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		owner->prioceilingLocks--;
+	}
+
 	if (lock->queue != NULL) {
-		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
+		/* Transfer lock to the first waiter */
 		lock->owner = lock->queue;
-		lockPriority = _proc_lockGetPriority(lock);
-		if (lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, lockPriority);
+
+		if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT) {
+			/*
+			 * Must clear first: the new owner now waits for a lock it owns, so
+			 * _sc_blockedOn() would answer with the thread itself.
+			 */
+			_thread_clearBlocked(lock->owner, WAIT_LOCK);
+
+			_sc_return(owner, lock->owner);
+
+			if (lock->queue->qnext != lock->queue) {
+				/* Move donations to a new owner and recalculate new best SC */
+
+				/* FIXME: this is not ideal, as it extends the critical section of spinlocks. Come up with a way to do this interruptibly */
+				_sc_migrate(owner, lock->queue, lock->owner);
+			}
 		}
+
+		/* Wake the new owner and add lock to its held-locks list */
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
+		if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+			lock->owner->prioceilingLocks++;
+		}
+
 		ret = 1;
 	}
 	else {
 		lock->owner = NULL;
 	}
 
-	/* Restore previous owner priority */
-	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+		if (ret == 1) {
+			_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+		}
+	}
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
 			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
@@ -1970,15 +2058,14 @@ static int _proc_lockClear(lock_t *lock)
 	spinlock_ctx_t sc;
 	int ret;
 
-#ifdef DEBUG_THREADS
+#ifndef NDEBUG
 	thread_t *current = proc_current();
-
-	LIB_ASSERT_THREADS(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
+	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
 			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
-	LIB_ASSERT_THREADS(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
-			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0,
-			proc_getTid(current), proc_getTid(lock->owner));
+	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner pid: %d, owner tid: %d, unlocking someone else's lock",
+			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current),
+			(lock->owner->process != NULL) ? process_getPid(lock->owner->process) : 0, proc_getTid(lock->owner));
 #endif
 
 	if (lock->owner == NULL) {

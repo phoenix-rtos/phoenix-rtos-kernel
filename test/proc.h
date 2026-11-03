@@ -26,6 +26,9 @@ void test_proc_threads2(void);
 void test_proc_exit(void);
 
 
+void test_proc_priorityInherit(void);
+
+
 #endif
 
 /* parasoft-end-suppress ALL */
