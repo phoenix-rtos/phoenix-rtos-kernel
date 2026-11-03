@@ -56,7 +56,7 @@ typedef struct _port_t {
 
 	port_queue_t queue;
 
-	/* Receivers serving a message from this port. */
+	/* Receivers serving a message from this port - the threads a sender boosts. */
 	thread_t *busy;
 } port_t;
 
@@ -107,6 +107,10 @@ void _portSenderRequeue(thread_t *t, u8 priority);
 
 /* Deregisters t from the port whose message it was serving, if any. */
 void _portBusyRemove(thread_t *t);
+
+
+/* Takes back the SCs donated to recv by senders waiting for it. */
+void _portDropBoosts(thread_t *recv);
 
 
 /* The receiver waiting on p, or NULL if there is none. */

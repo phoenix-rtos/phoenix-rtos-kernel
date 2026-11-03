@@ -47,6 +47,7 @@
 
 #define WAIT_NOTHING 0U
 #define WAIT_LOCK    1U /* a PROTO_INHERIT lock_t, we wait for its owner */
+#define WAIT_RECV    2U /* thread_t, a busy port receiver */
 #define WAIT_CALL    3U /* thread_t, the IPC callee serving our message */
 #define WAIT_REAP    4U /* thread_t, a ghost waits for the thread that will destroy it */
 
@@ -99,6 +100,11 @@ typedef struct _thread_t {
 
 	void *blockedOn;           /* blockedKind declares type */
 	sched_context_t *scPushed; /* SC this thread donated through _sc_push(), if any */
+
+	/* busy receivers may be boosted by clients waiting for ready receiver in _portWait() */
+	struct _thread_t *boosters;
+	struct _thread_t *boostNext;
+	struct _thread_t *boostPrev;
 
 	struct _port_t *waitPort; /* port whose queue this thread waits on, if any */
 	struct _port_t *busyPort; /* port whose message this thread serves, if any */
@@ -181,6 +187,12 @@ static inline int proc_getTid(const thread_t *t)
 static inline struct _lock_t *_thread_waitingOn(const thread_t *t)
 {
 	return (t->blockedKind == WAIT_LOCK) ? (struct _lock_t *)t->blockedOn : NULL;
+}
+
+
+static inline thread_t *_thread_waitingRecv(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_RECV) ? (thread_t *)t->blockedOn : NULL;
 }
 
 

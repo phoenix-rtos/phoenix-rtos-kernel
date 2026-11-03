@@ -67,6 +67,10 @@ struct _thread_t *_sc_blockedOn(struct _thread_t *t);
 int _sc_reaches(struct _thread_t *t, const struct _thread_t *target);
 
 
+/* t blocks on recv, a receiver busy serving somebody else. */
+void _sc_blockOnRecv(struct _thread_t *t, struct _thread_t *recv);
+
+
 /* Makes t run its best SC. */
 void _sc_recalculate(struct _thread_t *t);
 

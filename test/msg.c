@@ -179,8 +179,9 @@ void test_msg(void)
 
 
 /*
- * Port hand-off tests: the priority-ordered hand-off of a freed receiver to the
- * best waiting sender.
+ * Port hand-off and bandwidth-inheritance tests: the priority-ordered hand-off
+ * of a freed receiver to the best waiting sender, and the SC a sender donates
+ * to a busy receiver while it waits.
  */
 
 
@@ -194,6 +195,7 @@ void test_msg(void)
 static struct {
 	/* port ids, one per scenario */
 	unsigned int order;
+	unsigned int busy;
 	unsigned int stress;
 	unsigned int teardown;
 	unsigned int close;
@@ -202,6 +204,7 @@ static struct {
 	int served[TEST_PORT_SERVED_MAX];
 	unsigned int servedCnt;
 
+	thread_t *busyServer;
 	thread_t *dying;
 	thread_t *client[3];
 
@@ -326,6 +329,96 @@ static void test_port_handoffOrder(void)
 
 
 /*
+ * Scenario 2: a sender queued behind a *busy* receiver must lend it its
+ * priority, the same way a thread blocking on a held mutex does.
+ */
+
+
+static void test_port_busyServerThr(void *arg)
+{
+	msg_t msg;
+	msg_rid_t rid;
+	unsigned int i;
+
+	test_port_common.busyServer = proc_current();
+
+	for (i = 0; i < 2; i++) {
+		if (proc_recv(test_port_common.busy, &msg, &rid) < 0) {
+			continue;
+		}
+
+		proc_threadSleep(200000);
+
+		msg.o.err = EOK;
+		(void)proc_respond(test_port_common.busy, &msg, rid);
+	}
+
+	/* stay alive (and unboosted) for the last check */
+	proc_threadSleep(2000000);
+
+	proc_threadEnd();
+}
+
+
+static void test_port_busyClient(void *arg)
+{
+	unsigned long delay = (unsigned long)arg;
+	msg_t msg;
+
+	proc_threadSleep(delay);
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = (int)proc_current()->priority;
+
+	(void)proc_send(test_port_common.busy, &msg);
+
+	proc_threadEnd();
+}
+
+
+static void test_port_busyChecker(void *arg)
+{
+	int prio;
+
+	/* serving the low-priority client, nothing to inherit yet */
+	proc_threadSleep(50000);
+	prio = proc_threadPriority(test_port_common.busyServer, -1);
+	lib_printf("test: [port.boost] server priority while serving prio 14: %d\n", prio);
+	LIB_ASSERT_ALWAYS(prio == 12, "BWI FAILED: server priority changed without a boost (got %d, expected 12)", prio);
+
+	/* prio 2 client is now queued behind the busy server */
+	proc_threadSleep(100000);
+	prio = proc_threadPriority(test_port_common.busyServer, -1);
+	lib_printf("test: [port.boost] server priority with a prio 2 sender queued: %d\n", prio);
+	LIB_ASSERT_ALWAYS(prio == 2, "BWI FAILED: busy server not boosted by a queued sender (got %d, expected 2)", prio);
+
+	/* both served, the donation is back home */
+	proc_threadSleep(400000);
+	prio = proc_threadPriority(test_port_common.busyServer, -1);
+	lib_printf("test: [port.boost] server priority after both were served: %d\n", prio);
+	LIB_ASSERT_ALWAYS(prio == 12, "BWI FAILED: server priority not restored (got %d, expected 12)", prio);
+
+	lib_printf("test: [port.boost] PASSED\n");
+
+	proc_threadEnd();
+}
+
+
+static void test_port_busyBoost(void)
+{
+	if (proc_portCreate(&test_port_common.busy) != EOK) {
+		lib_printf("test: [port.boost] could not create a port\n");
+		return;
+	}
+
+	proc_threadCreate(NULL, test_port_busyServerThr, NULL, 12, 2048, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_port_busyClient, NULL, 14, 2048, NULL, 0, 0, (void *)0UL);
+	proc_threadCreate(NULL, test_port_busyClient, NULL, 2, 2048, NULL, 0, 0, (void *)100000UL);
+	proc_threadCreate(NULL, test_port_busyChecker, NULL, 0, 2048, NULL, 0, 0, NULL);
+}
+
+
+/*
  * Scenario 3: stress. Several senders at mixed priorities against two
  * receivers of one port, some of them holding a mutex across the call while
  * another thread contends it - that chains a lock donation through a sender
@@ -440,7 +533,8 @@ static void test_port_stressRun(void)
 
 /*
  * Scenario 4: teardown. A receiver is killed while it is serving one sender
- * and others wait, and a sender's priority is changed while it sits queued. Nobody may be stranded: a second receiver has to serve
+ * and being boosted by others, and a sender's priority is changed while it
+ * sits queued. Nobody may be stranded: a second receiver has to serve
  * everyone to the end.
  */
 
@@ -769,6 +863,9 @@ static void test_msg_portInitthr(void *arg)
 
 	test_port_handoffOrder();
 	proc_threadSleep(1000000);
+
+	test_port_busyBoost();
+	proc_threadSleep(1200000);
 
 	test_port_stressRun();
 	proc_threadSleep(7000000);
