@@ -1757,6 +1757,8 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	void *data = NULL;
 	size_t size = IOCPARM_LEN(request);
 
+	hal_memset(&msg, 0, sizeof(msg));
+
 	err = posix_getOpenFile(fildes, &f);
 	if (err == EOK) {
 		/* TODO: handle POSIX defined requests */
