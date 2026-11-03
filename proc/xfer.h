@@ -23,6 +23,7 @@
 
 typedef enum {
 	msg_xfer_none = 0, /* nothing to transfer */
+	msg_xfer_raw,      /* payload fits into the message's raw area after the fields of its type */
 	msg_xfer_map,      /* fallback - the payload pages are mapped into the receiver, see xfer_bufMap() */
 } msg_xfer_t;
 
@@ -40,8 +41,12 @@ typedef enum {
  */
 
 
-/* Prepares idata/odata for recv, in the caller's address space, and returns them as recv sees them. */
-int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
+/*
+ * Prepares idata/odata for recv, in the caller's address space, and returns them as recv sees them.
+ * iraw is the i.raw recv gets, a msg_xfer_raw input is packed into it; oraw
+ * takes a msg_xfer_raw output, which recv gets in its o.raw to begin with.
+ */
+int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, unsigned char *oraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
 /*
@@ -49,6 +54,10 @@ int xfer_begin(thread_t *caller, thread_t *recv, const void *idata, size_t isize
  * Returns the size written back.
  */
 size_t xfer_end(thread_t *caller, size_t osize);
+
+
+/* Requires threads_spinlock and the caller's address space, done on switching to it. */
+void _xfer_copyOut(thread_t *caller);
 
 
 /* Releases the call without writing anything back. */

@@ -691,6 +691,8 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 /* assumes the aspace of t */
 static void _threads_copyMsgBufResponse(thread_t *t)
 {
+	_xfer_copyOut(t);
+
 	t->ipc.msgPtr->o.size = t->ipc.reply.size;
 	hal_memcpy(t->ipc.msgPtr->o.raw, t->ipc.reply.raw, MSG_RAW_SIZE);
 	t->ipc.msgPtr->o.err = t->ipc.reply.err;
