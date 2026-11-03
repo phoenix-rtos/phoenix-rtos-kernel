@@ -16,9 +16,33 @@
 
 
 static struct {
-	idtree_t tree;
-	lock_t port_lock;
+	table_t table;
+	port_t *free;
+	spinlock_t spinlock;
 } port_common;
+
+
+/* Takes a reference, unless the port is already dead. */
+static int _port_ref(port_t *p)
+{
+	int refs = __atomic_load_n(&p->refs, __ATOMIC_ACQUIRE);
+
+	while (refs != 0) {
+		if (__atomic_compare_exchange_n(&p->refs, &refs, refs + 1, 1, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE) != 0) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+
+int port_release(port_t *p)
+{
+	int refs = __atomic_sub_fetch(&p->refs, 1, __ATOMIC_ACQ_REL);
+	LIB_ASSERT(refs >= 0, "port_release on refs=0");
+	return refs;
+}
 
 
 msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
@@ -53,22 +77,47 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
-	spinlock_ctx_t sc;
 
 	if (id > MAX_ID) {
 		return NULL;
 	}
 
-	(void)proc_lockSet(&port_common.port_lock);
-	port = lib_treeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
-	if (port != NULL) {
-		hal_spinlockSet(&port->spinlock, &sc);
-		port->refs++;
-		hal_spinlockClear(&port->spinlock, &sc);
-	}
-	(void)proc_lockClear(&port_common.port_lock);
+	for (;;) {
+		port = lib_tableGet(&port_common.table, (int)id);
+		if (port == NULL) {
+			return NULL;
+		}
 
-	return port;
+		if (_port_ref(port) == 0) {
+			/* dying */
+			return NULL;
+		}
+
+		if (lib_tableGet(&port_common.table, (int)id) == port) {
+			return port;
+		}
+
+		/* recycled under us - it belongs to some other id now */
+		port_put(port, 0);
+	}
+}
+
+
+void port_free(port_t *p)
+{
+	spinlock_ctx_t sc;
+
+	if (p->next != NULL) {
+		proc_lockSet(&p->owner->lock);
+		LIST_REMOVE(&p->owner->ports, p);
+		proc_lockClear(&p->owner->lock);
+	}
+
+	hal_spinlockSet(&port_common.spinlock, &sc);
+	(void)lib_tableRemove(&port_common.table, (int)p->id);
+	p->next = port_common.free;
+	port_common.free = p;
+	hal_spinlockClear(&port_common.spinlock, &sc);
 }
 
 
@@ -76,38 +125,48 @@ void port_put(port_t *p, int destroy)
 {
 	spinlock_ctx_t sc;
 
-	(void)proc_lockSet(&port_common.port_lock);
-	hal_spinlockSet(&p->spinlock, &sc);
-	p->refs--;
-
 	if (destroy != 0) {
+		hal_spinlockSet(&p->spinlock, &sc);
 		p->closed = 1;
+		hal_spinlockClear(&p->spinlock, &sc);
 	}
 
-	if (p->refs != 0) {
+	if (port_release(p) != 0) {
 		if (destroy != 0) {
 			/* Wake receivers up */
+			hal_spinlockSet(&p->spinlock, &sc);
 			(void)proc_threadBroadcast(&p->threads);
+			hal_spinlockClear(&p->spinlock, &sc);
 		}
 
-		hal_spinlockClear(&p->spinlock, &sc);
-		(void)proc_lockClear(&port_common.port_lock);
 		return;
 	}
 
-	hal_spinlockClear(&p->spinlock, &sc);
-	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	(void)proc_lockClear(&port_common.port_lock);
+	port_free(p);
+}
 
-	(void)proc_lockSet(&p->owner->lock);
-	if (p->next != NULL) {
-		LIST_REMOVE(&p->owner->ports, p);
+
+static port_t *_port_alloc(void)
+{
+	port_t *port;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&port_common.spinlock, &sc);
+	port = port_common.free;
+	if (port != NULL) {
+		port_common.free = port->next;
 	}
-	(void)proc_lockClear(&p->owner->lock);
+	hal_spinlockClear(&port_common.spinlock, &sc);
 
-	(void)proc_lockDone(&p->lock);
-	hal_spinlockDestroy(&p->spinlock);
-	vm_kfree(p);
+	if (port == NULL) {
+		port = vm_kmalloc(sizeof(port_t));
+		if (port != NULL) {
+			hal_spinlockCreate(&port->spinlock, "port.spinlock");
+			(void)proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
+		}
+	}
+
+	return port;
 }
 
 
@@ -116,33 +175,60 @@ int proc_portCreate(u32 *id)
 	port_t *port;
 	thread_t *curr = proc_current();
 	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	spinlock_ctx_t sc;
+	table_block_t *block;
+	size_t size;
+	int res;
 
-	port = vm_kmalloc(sizeof(port_t));
+	port = _port_alloc();
 	if (port == NULL) {
 		return -ENOMEM;
 	}
 
-	(void)proc_lockSet(&port_common.port_lock);
-	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
-		(void)proc_lockClear(&port_common.port_lock);
-		vm_kfree(port);
-		return -ENOMEM;
-	}
-
+	port->next = NULL;
 	port->kmessages = NULL;
-	hal_spinlockCreate(&port->spinlock, "port.spinlock");
-
 	lib_idtreeInit(&port->rid);
-	(void)proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
-
 	port->threads = NULL;
 	port->current = NULL;
 	port->refs = 1;
 	port->closed = 0;
-
-	*id = (u32)port->linkage.id;
 	port->owner = proc;
-	(void)proc_lockClear(&port_common.port_lock);
+
+	/* The port is fully initialized before it becomes reachable by its id. */
+	for (;;) {
+		hal_spinlockSet(&port_common.spinlock, &sc);
+		res = lib_tableAdd(&port_common.table, port);
+		if (res >= 0) {
+			port->id = (u32)res;
+		}
+		hal_spinlockClear(&port_common.spinlock, &sc);
+
+		if (res >= 0) {
+			break;
+		}
+
+		/* No free id, grow the table */
+		size = lib_tableNextSize(&port_common.table);
+		block = (size != 0) ? vm_kmalloc(TABLE_BLOCK_BYTES(size)) : NULL;
+		if (block == NULL) {
+			hal_spinlockSet(&port_common.spinlock, &sc);
+			port->next = port_common.free;
+			port_common.free = port;
+			hal_spinlockClear(&port_common.spinlock, &sc);
+			return -ENOMEM;
+		}
+
+		hal_spinlockSet(&port_common.spinlock, &sc);
+		res = lib_tableGrow(&port_common.table, block, size);
+		hal_spinlockClear(&port_common.spinlock, &sc);
+
+		if (res < 0) {
+			/* somebody grew it first */
+			vm_kfree(block);
+		}
+	}
+
+	*id = port->id;
 
 	if (proc != NULL) {
 		(void)proc_lockSet(&proc->lock);
@@ -159,16 +245,16 @@ void proc_portDestroy(u32 port)
 	port_t *p = proc_portGet(port);
 	thread_t *curr = proc_current();
 	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	int own;
 
 	if (p == NULL) {
 		return;
 	}
 
-	if ((p->closed != 0) || ((proc != NULL) && (p->owner != proc))) {
-		port_put(p, 0);
-	}
-	else {
-		port_put(p, 0);
+	own = ((p->closed == 0) && ((proc == NULL) || (p->owner == proc))) ? 1 : 0;
+
+	port_put(p, 0);
+	if (own != 0) {
 		port_put(p, 1);
 	}
 }
@@ -194,6 +280,7 @@ void proc_portsDestroy(process_t *proc)
 
 void _port_init(void)
 {
-	lib_idtreeInit(&port_common.tree);
-	(void)proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
+	lib_tableInit(&port_common.table);
+	port_common.free = NULL;
+	hal_spinlockCreate(&port_common.spinlock, "ports.spinlock");
 }

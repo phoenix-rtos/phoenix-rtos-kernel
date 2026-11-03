@@ -22,7 +22,7 @@
 
 
 typedef struct _port_t {
-	idnode_t linkage;
+	u32 id;
 	struct _port_t *next;
 	struct _port_t *prev;
 
@@ -30,7 +30,8 @@ typedef struct _port_t {
 
 	kmsg_t *kmessages;
 	process_t *owner;
-	int refs, closed;
+	int refs; /* atomic: proc_portGet() takes a reference without any lock */
+	int closed;
 
 	spinlock_t spinlock;
 	lock_t lock;
@@ -51,6 +52,14 @@ void proc_portsDestroy(process_t *proc);
 
 
 port_t *proc_portGet(u32 id);
+
+
+/* Drops a reference and returns what is left. Never frees; see port_free(). */
+int port_release(port_t *p);
+
+
+/* Finishes off a port whose last reference port_release() just dropped. */
+void port_free(port_t *p);
 
 
 void port_put(port_t *p, int destroy);
