@@ -21,6 +21,7 @@
 #include "include/sched.h"
 #include "process.h"
 #include "lock.h"
+#include "sc.h"
 
 #ifdef DEBUG_THREADS
 #define LIB_ASSERT_THREADS(condition, fmt, ...) LIB_ASSERT_ALWAYS((condition), (fmt), ##__VA_ARGS__)
@@ -58,17 +59,18 @@ typedef struct _thread_t {
 	struct _thread_t **wait;
 	time_t wakeup;
 
+	sched_context_t *scOwn;    /* thread's base SC */
+	sched_context_t *scActive; /* SC currently being consumed (used by scheduler) */
+
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
 	unsigned int state : 2;
 	unsigned int exit : 2;
 	unsigned interruptible : 1;
+	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
 
 	unsigned int sigmask;
 	unsigned int sigpend;
-
-	time_t stick;
-	time_t utick;
 
 	void *kstack;
 	size_t kstacksz;
@@ -79,13 +81,6 @@ typedef struct _thread_t {
 	/* for vfork/exec */
 	void *parentkstack, *execkstack;
 	void *execdata;
-
-	time_t readyTime;
-	time_t maxWait;
-
-	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
