@@ -500,7 +500,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		selected->state = GHOST;
-		LIST_ADD(&threads_common.ghosts, selected);
+		LIST_ADD_EX(&threads_common.ghosts, selected, gnext, gprev);
 		(void)_proc_threadWakeup(&threads_common.reaper);
 		selected = NULL;
 
@@ -774,7 +774,7 @@ static u8 _proc_lockGetPriority(lock_t *lock)
 			if (thread->priority < priority) {
 				priority = thread->priority;
 			}
-			thread = thread->next;
+			thread = thread->qnext;
 		} while (thread != lock->queue);
 	}
 
@@ -906,7 +906,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	threads_common.currentSc[cpu] = NULL;
 	threads_common.currentThread[cpu] = NULL;
 	t->state = GHOST;
-	LIST_ADD(&threads_common.ghosts, t);
+	LIST_ADD_EX(&threads_common.ghosts, t, gnext, gprev);
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
 	(void)hal_cpuReschedule(&threads_spinlock, &sc);
@@ -964,7 +964,7 @@ void proc_reap(void)
 		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
 	}
 	ghost = threads_common.ghosts;
-	LIST_REMOVE(&threads_common.ghosts, ghost);
+	LIST_REMOVE_EX(&threads_common.ghosts, ghost, gnext, gprev);
 	hal_spinlockClear(&threads_spinlock, &sc);
 
 	threads_put(ghost);
@@ -1000,7 +1000,7 @@ static void _proc_threadDequeue(thread_t *t)
 	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
 
 	if (t->wait != NULL) {
-		LIST_REMOVE(t->wait, t);
+		LIST_REMOVE_EX(t->wait, t, qnext, qprev);
 	}
 
 	if (t->wakeup != 0) {
@@ -1036,7 +1036,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptib
 
 	current = _proc_current();
 
-	LIST_ADD(queue, current);
+	LIST_ADD_EX(queue, current, qnext, qprev);
 
 	current->state = SLEEP;
 	current->wakeup = 0;
