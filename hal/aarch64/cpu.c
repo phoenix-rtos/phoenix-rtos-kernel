@@ -309,6 +309,22 @@ void hal_cpuGetCycles(cycles_t *cb)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	(void)sc;
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile(
+			"msr daifSet, #7\n\t"
+			"mov x1, %0\n\t"
+			"b _hal_cpuRestoreCtx\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+	__builtin_unreachable();
+}
+
+
 void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_spinlockClear(spinlock, sc);

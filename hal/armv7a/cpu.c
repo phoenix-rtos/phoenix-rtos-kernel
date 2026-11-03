@@ -271,3 +271,19 @@ void hal_cleanDCache(ptr_t start, size_t len)
 {
 	hal_cpuCleanDataCache(start, start + len);
 }
+
+
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	(void)sc;
+
+	asm volatile(
+			"cpsid if\n\t"
+			"mov sp, %0\n\t"
+			"add sp, sp, #8\n\t"
+			"b _hal_cpuRestoreCtx\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+	__builtin_unreachable();
+}

@@ -313,7 +313,12 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	__asm__ volatile("mov %0, %%g7" ::"r"(tls->tls_base + tls->tbss_sz + tls->tdata_sz));
+	u32 tp = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+
+	if (ctx != NULL) {
+		ctx->g7 = tp;
+	}
+	__asm__ volatile("mov %0, %%g7" ::"r"(tp));
 }
 
 

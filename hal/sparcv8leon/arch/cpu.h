@@ -268,13 +268,13 @@ static inline void hal_cpuSetDevBusy(int s)
 }
 
 
-#ifdef NOMMU
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();
 }
 
 
+#ifdef NOMMU
 /* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void *hal_cpuGetGot(void)
 {
