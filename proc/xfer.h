@@ -21,9 +21,14 @@
 #include "threads.h"
 
 
+#define MSG_MAX_IPC_BUF (32U * _PAGE_SIZE)
+
+
 typedef enum {
 	msg_xfer_none = 0, /* nothing to transfer */
 	msg_xfer_raw,      /* payload fits into the message's raw area after the fields of its type */
+	msg_xfer_extra,    /* payload fits into the receiver's IPC buffer */
+	msg_xfer_borrow,   /* payload lives inside the caller's IPC buffer, which the receiver borrows */
 	msg_xfer_map,      /* fallback - the payload pages are mapped into the receiver, see xfer_bufMap() */
 } msg_xfer_t;
 
@@ -49,13 +54,14 @@ typedef enum {
 int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, unsigned char *oraw, const void *idata, size_t isize, void *odata, size_t osize, void **ridata, void **rodata);
 
 
-/* Points msg at forward's copy of the call's data, before recv passes msg on to forward. */
+/* Moves the call's data out of recv's IPC buffer and points msg at the copy, before recv passes msg on to forward. */
 int xfer_forward(thread_t *caller, thread_t *recv, thread_t *forward, msg_t *msg);
 
 
 /*
  * Writes back the output, at most the caller's o.size of it, and releases the call.
- * Returns the size written back.
+ * Returns the size written back. Output in the responder's IPC buffer is only
+ * copied by _xfer_copyOut(), the buffer is held unchanged until then.
  */
 size_t xfer_end(thread_t *caller, size_t osize);
 
@@ -64,8 +70,15 @@ size_t xfer_end(thread_t *caller, size_t osize);
 void _xfer_copyOut(thread_t *caller);
 
 
+/* Completes the copy owner's IPC buffer is held for, before the buffer goes away. */
+void xfer_flush(thread_t *owner);
+
+
 /* Releases the call without writing anything back. */
 void xfer_abort(thread_t *caller);
+
+
+void *xfer_setupIpcBuf(thread_t *t, size_t sz);
 
 
 void xfer_releaseIpcBuf(thread_t *thread);
@@ -84,6 +97,19 @@ void xfer_bufCopyBack(xferBuf_t *xb, size_t size);
 
 
 void xfer_bufRelease(xferBuf_t *xb);
+
+
+int xfer_borrowMap(thread_t *caller, thread_t *recv);
+
+
+void xfer_borrowCopyBack(thread_t *caller, size_t ofs, size_t size);
+
+
+void xfer_borrowRelease(thread_t *caller);
+
+
+/* Requires threads_spinlock, may be called in any address space. */
+void _xfer_copyToCaller(thread_t *caller, void *dst, const void *src, size_t size);
 
 
 #endif

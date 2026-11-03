@@ -1038,6 +1038,16 @@ int syscalls_msgPulse(u8 *ustack)
 }
 
 
+void *syscalls_msgSetup(u8 *ustack)
+{
+	size_t sz;
+
+	GETFROMSTACK(ustack, size_t, sz, 0U);
+
+	return xfer_setupIpcBuf(proc_current(), sz);
+}
+
+
 int syscalls_msgRecv(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
