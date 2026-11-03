@@ -41,6 +41,9 @@
 #define SLEEP 1U
 #define GHOST 2U
 
+#define WAIT_NOTHING 0U
+#define WAIT_LOCK    1U /* a PROTO_INHERIT lock_t, we wait for its owner */
+
 typedef struct _thread_t {
 	struct _lock_t *locks;
 
@@ -59,19 +62,24 @@ typedef struct _thread_t {
 	struct _thread_t *gprev;
 
 	int refs;
-	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	time_t wakeup;
 
-	sched_context_t *scOwn;    /* thread's base SC */
-	sched_context_t *scActive; /* SC currently being consumed (used by scheduler) */
+	sched_context_t *scOwn;     /* thread's base SC - never donated away */
+	sched_context_t *scActive;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *scDonated; /* SCs donated to the thread */
 
+	void *blockedOn;           /* blockedKind declares type */
+	sched_context_t *scPushed; /* SC this thread donated through _sc_push(), if any */
+
+	unsigned int prioceilingLocks : 8;
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
 	unsigned int state : 2;
+	unsigned int blockedKind : 3;
+	unsigned int interruptible : 1;
 	unsigned int exit : 2;
-	unsigned interruptible : 1;
 	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
 
 	unsigned int sigmask;
@@ -95,6 +103,31 @@ typedef struct _thread_t {
 static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
+}
+
+
+/* WARN: blockedKind readers bellow require threads_spinlock. */
+
+
+static inline struct _lock_t *_thread_waitingOn(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_LOCK) ? (struct _lock_t *)t->blockedOn : NULL;
+}
+
+
+static inline void _thread_setBlocked(thread_t *t, unsigned int kind, void *obj)
+{
+	t->blockedOn = obj;
+	t->blockedKind = kind;
+}
+
+
+static inline void _thread_clearBlocked(thread_t *t, unsigned int kind)
+{
+	if (t->blockedKind == kind) {
+		t->blockedOn = NULL;
+		t->blockedKind = WAIT_NOTHING;
+	}
 }
 
 
@@ -200,8 +233,20 @@ void proc_threadsDump(u8 priority);
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
-/* The scheduler lock */
+/*
+ * The scheduler lock. SC donation (sc.h) is protected by it as well, so
+ * everything below whose name starts with an underscore assumes it is held.
+ */
 extern spinlock_t threads_spinlock;
+
+
+/* Makes t run sc, or nothing at all if sc is NULL. Updates its effective
+ * priority and its ready queue linkage. */
+void _threads_setActiveSc(thread_t *t, sched_context_t *sc);
+
+
+/* Blocks t on a queue in the given state, without touching the ready queue. */
+void _proc_threadEnqueueThread(thread_t *t, thread_t **queue, u8 state, time_t timeout, int interruptible);
 
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig);
