@@ -1156,7 +1156,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		_vm_mapEntryCopy(f, e, 1);
 		(void)_map_add(proc, dst, f);
 
-		if ((e->flags & MAP_DEVICE) == 0U) {
+		if (((e->flags & MAP_DEVICE) == 0U) && ((e->flags & MAP_SHARED) == 0U)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
