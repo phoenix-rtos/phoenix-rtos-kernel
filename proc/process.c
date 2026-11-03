@@ -84,6 +84,13 @@ static void process_destroy(process_t *p)
 	thread_t *ghost;
 	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
+#ifndef NOMMU
+	/* a vfork child killed before it got a map of its own runs on its parent's */
+	if (mapp != &p->map) {
+		mapp = NULL;
+	}
+#endif
+
 	trace_eventProcessKill(p);
 
 	if (p->posix != 0U) {
@@ -1343,11 +1350,14 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 __attribute__((noreturn)) static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
 	current->ustack = NULL;
-	proc_changeMap(current->process, NULL, NULL, NULL);
+
+	if (current->process->mapp != &current->process->map) {
+		proc_changeMap(current->process, NULL, NULL, NULL);
+	}
 
 	proc_kill(current->process);
 
-	/* Only possible in the case of `initthread` exit or failure to fork. */
+	/* Only possible in the case of initthread exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		(void)vm_objectPut(spawn->object);
@@ -1492,6 +1502,11 @@ int proc_vfork(void)
 	spawn->state = FORKING;
 	(void)proc_threadWakeup(&spawn->wq);
 
+	/*
+	 * FIXME: only the child's exec, exit or copy wakes us. A child killed before
+	 * that (a group SIGKILL during fork, as in msg_ctrlc.fork_storm) never does,
+	 * and we sleep here for good, killed but not interruptible.
+	 */
 	do {
 		/*
 		 * proc_threadWait call stores context on the stack - this allows to execute child
