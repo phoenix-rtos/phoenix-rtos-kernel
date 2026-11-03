@@ -28,7 +28,8 @@
 #define LIB_ASSERT_THREADS(condition, fmt, ...)
 #endif
 
-#define MAX_PRIO 7U /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
+#define NPRIOS   16U
+#define MAX_PRIO (NPRIOS - 1U) /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1U
