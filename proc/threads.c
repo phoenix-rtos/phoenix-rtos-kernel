@@ -46,9 +46,11 @@ spinlock_t threads_spinlock;
 static struct {
 	vm_map_t *kmap;
 	lock_t lock;
-	thread_t *ready[MAX_PRIO + 1U];
+	thread_t *ready[NPRIOS];
 	thread_t **current;
 	time_t utcoffs;
+
+	u32 readyNonempty; /* bit per priority, NPRIOS <= 32 */
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
@@ -247,6 +249,30 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 static void proc_lockForceUnlock(lock_t *lock, int doYield);
 
 
+static void _threads_readyAdd(thread_t *t)
+{
+	unsigned int prio = t->priority;
+
+	LIST_ADD(&threads_common.ready[prio], t);
+	threads_common.readyNonempty |= (1UL << prio);
+}
+
+
+static void _readyRemove(thread_t *t, unsigned int prio)
+{
+	LIST_REMOVE(&threads_common.ready[prio], t);
+	if (threads_common.ready[prio] == NULL) {
+		threads_common.readyNonempty &= ~(1UL << prio);
+	}
+}
+
+
+static u8 _readyMin(void)
+{
+	return (threads_common.readyNonempty != 0U) ? (u8)hal_cpuGetFirstBit(threads_common.readyNonempty) : (u8)NPRIOS;
+}
+
+
 __attribute__((noreturn)) void threads_halt(void)
 {
 	spinlock_ctx_t sc;
@@ -380,7 +406,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
-	thread_t *current, *selected;
+	thread_t *current, *selected = NULL;
 	unsigned int i;
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
@@ -401,21 +427,18 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
-			LIST_ADD(&threads_common.ready[current->priority], current);
+			_threads_readyAdd(current);
 			_threads_preempted(current);
 		}
 	}
 
 	/* Get next thread */
-	i = 0;
-	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
+	i = _readyMin();
+	while (i < NPRIOS) {
 		selected = threads_common.ready[i];
-		if (selected == NULL) {
-			i++;
-			continue;
-		}
+		LIB_ASSERT(selected != NULL, "ready list empty despite its bit?");
 
-		LIST_REMOVE(&threads_common.ready[i], selected);
+		_readyRemove(selected, i);
 
 		if (selected->exit == 0U) {
 			break;
@@ -428,6 +451,10 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		selected->state = GHOST;
 		LIST_ADD(&threads_common.ghosts, selected);
 		(void)_proc_threadWakeup(&threads_common.reaper);
+		selected = NULL;
+
+		/* that may have been the last thread of priority i */
+		i = _readyMin();
 	}
 
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
@@ -575,7 +602,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	spinlock_ctx_t sc;
 	int err;
 
-	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
+	if (priority >= NPRIOS) {
 		return -EINVAL;
 	}
 
@@ -663,7 +690,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	/* Insert thread to scheduler queue */
 
 	_threads_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t);
+	_threads_readyAdd(t);
 
 	hal_spinlockClear(&threads_spinlock, &sc);
 
@@ -739,8 +766,9 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
 					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
 					thread, proc_getTid(thread), thread->priority);
-			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
-			LIST_ADD(&threads_common.ready[priority], thread);
+			_readyRemove(thread, thread->priority);
+			thread->priority = priority;
+			_threads_readyAdd(thread);
 		}
 	}
 
@@ -936,7 +964,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		LIST_ADD(&threads_common.ready[t->priority], t);
+		_threads_readyAdd(t);
 	}
 }
 
@@ -2347,10 +2375,11 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
 	}
 
-	/* Initiaizlie scheduler queue */
+	/* Initialize scheduler queues */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
 		threads_common.ready[i] = NULL;
 	}
+	threads_common.readyNonempty = 0;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
