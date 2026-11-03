@@ -975,6 +975,11 @@ static void test_storm_server(void *arg)
 	msg_t msg;
 	msg_rid_t rid;
 
+	/* odd servers take small messages into their IPC buffer, the others get them mapped */
+	if ((id & 1U) != 0U) {
+		(void)xfer_setupIpcBuf(proc_current(), 2U * SIZE_PAGE);
+	}
+
 	for (;;) {
 		test_storm_exitIfKilled();
 

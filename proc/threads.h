@@ -157,9 +157,20 @@ typedef struct _thread_t {
 			u8 replied;
 			u8 irawofs;
 			u8 orawofs;
+			size_t isize;
 			size_t osize;
 			void *odata;
+			struct _thread_t *owner;
+			void *bw;
+			vm_map_t *bmap;
 		} call;
+
+		/* IPC buffer */
+		void *kw;
+		void *w;
+		page_t *p;
+		size_t size;
+		struct _thread_t *heldBy;
 
 		u8 pulse;
 

@@ -81,9 +81,111 @@ void xfer_bufCopyBack(xferBuf_t *xb, size_t size)
 }
 
 
+int xfer_borrowMap(thread_t *caller, thread_t *recv)
+{
+	vm_map_t *map = (recv->process != NULL) ? recv->process->mapp : xfer_common.kmap;
+	vm_prot_t prot = PROT_READ | PROT_WRITE;
+	void *w;
+
+	if (recv->process != NULL) {
+		prot |= PROT_USER;
+	}
+
+	w = vm_mmap(map, NULL, NULL, caller->ipc.size, prot, NULL, -1, MAP_ANONYMOUS);
+	if (w == NULL) {
+		return -ENOMEM;
+	}
+
+	hal_memcpy(w, caller->ipc.w, caller->ipc.size);
+	caller->ipc.call.bw = w;
+	caller->ipc.call.bmap = map;
+
+	return EOK;
+}
+
+
+void xfer_borrowCopyBack(thread_t *caller, size_t ofs, size_t size)
+{
+	if ((caller->ipc.call.bw != NULL) && (size > 0U)) {
+		hal_memcpy((char *)caller->ipc.w + ofs, (char *)caller->ipc.call.bw + ofs, size);
+	}
+}
+
+
+void xfer_borrowRelease(thread_t *caller)
+{
+	if (caller->ipc.call.bmap != NULL) {
+		(void)vm_munmap(caller->ipc.call.bmap, caller->ipc.call.bw, caller->ipc.size);
+	}
+
+	caller->ipc.call.bw = NULL;
+	caller->ipc.call.bmap = NULL;
+}
+
+
+void _xfer_copyToCaller(thread_t *caller, void *dst, const void *src, size_t size)
+{
+	(void)caller;
+
+	if (size > 0U) {
+		hal_memcpy(dst, src, size);
+	}
+}
+
+
 void xfer_releaseIpcBuf(thread_t *t)
 {
-	(void)t;
+	xfer_flush(t);
+
+	vm_map_t *map;
+
+	if (t->ipc.w != NULL) {
+		map = (t->process != NULL) ? t->process->mapp : xfer_common.kmap;
+		(void)vm_munmap(map, t->ipc.w, t->ipc.size);
+		t->ipc.w = NULL;
+		t->ipc.kw = NULL;
+		t->ipc.size = 0;
+	}
+}
+
+
+void *xfer_setupIpcBuf(thread_t *t, size_t sz)
+{
+	vm_map_t *map;
+	vm_prot_t prot = PROT_READ | PROT_WRITE;
+	void *buffer;
+
+	if ((sz == 0U) || ((sz & (SIZE_PAGE - 1U)) != 0U)) {
+		return NULL;
+	}
+
+	if (t->ipc.w != NULL) {
+		if (t->ipc.size == sz) {
+			return t->ipc.w;
+		}
+
+		/* a call it serves may still have data in the buffer */
+		if (t->reply != NULL) {
+			return NULL;
+		}
+		xfer_releaseIpcBuf(t);
+	}
+
+	map = (t->process != NULL) ? t->process->mapp : xfer_common.kmap;
+	if (t->process != NULL) {
+		prot |= PROT_USER;
+	}
+
+	buffer = vm_mmap(map, NULL, NULL, sz, prot, NULL, -1, MAP_ANONYMOUS);
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	t->ipc.w = buffer;
+	t->ipc.kw = buffer;
+	t->ipc.size = sz;
+
+	return buffer;
 }
 
 
