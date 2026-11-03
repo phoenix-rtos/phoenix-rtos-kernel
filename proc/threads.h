@@ -180,6 +180,8 @@ typedef struct _thread_t {
 			size_t size;
 		} reply;
 
+		msg_t *kmsg; /* used by proc_kmsg()/name.c */
+
 		/* pointers in process' aspace */
 		msg_t *msgPtr;
 		msg_rid_t *ridPtr;
