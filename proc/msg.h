@@ -21,46 +21,15 @@
 #include "threads.h"
 
 
-typedef struct _kmsg_t {
-#ifndef NOMMU
-	msg_t msg;
-#else
-	msg_t *msg;
-#endif
-
-	struct _kmsg_t *next;
-	struct _kmsg_t *prev;
-
-	idnode_t idlinkage;
-
-	thread_t *threads;
-	process_t *src;
-	volatile int state;
-
-#ifndef NOMMU
-	struct _kmsg_layout_t {
-		void *bvaddr;
-		size_t boffs;
-		void *w;
-		page_t *bp;
-
-		void *evaddr;
-		size_t eoffs;
-		page_t *ep;
-	} i, o;
-#else
-	void *imapped;
-	void *omapped;
-#endif
-} kmsg_t;
-
-
 /*
  * Message passing
  */
 
 
 int proc_send(u32 port, msg_t *msg);
+
+
+int proc_send_returnable(u32 port, msg_t *msg);
 
 
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
@@ -70,6 +39,12 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel);
+
+
+void _proc_clearReplyChain(thread_t *from);
+
+
+void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval);
 
 
 #endif

@@ -21,8 +21,12 @@
 #include "log/log.h"
 #include "resource.h"
 #include "msg.h"
+#include "xfer.h"
 #include "ports.h"
 #include "perf/trace-events.h"
+
+#include "syscalls.h"
+
 
 /* clang-format off */
 enum { event_scheduling, event_enqueued, event_waking, event_preempted };
@@ -67,7 +71,10 @@ static struct {
 #endif
 
 	thread_t *ghosts;
+	port_t *ghostPorts;
+
 	thread_t *reaper;
+	thread_t *reaperThread; /* the thread running proc_reap(), NULL until it starts */
 
 	/* Debug */
 	unsigned char stackCanary[16];
@@ -78,12 +85,10 @@ static struct {
 _Static_assert(MAX_PRIO <= (u8)-1, "MAX_PRIO must fit into priority type");
 
 
-static thread_t *_proc_current(void);
-static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
 
 
-static time_t _proc_gettimeRaw(void)
+time_t _proc_gettimeRaw(void)
 {
 	time_t now = hal_timerGetUs();
 
@@ -156,7 +161,7 @@ static void _threads_preempted(thread_t *t)
 }
 
 
-static void _threads_enqueued(thread_t *t)
+void _threads_enqueued(thread_t *t)
 {
 	_threads_updateWaits(t, event_enqueued);
 	trace_eventThreadEnqueued(proc_getTid(t));
@@ -231,8 +236,13 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 			break;
 		}
 
-		_sc_reclaim(t);
-		_proc_threadDequeue(t);
+		if (t->state == BLOCKED_ON_RECV) {
+			_wakeReceiver(t);
+		}
+		else {
+			_sc_reclaim(t);
+			_proc_threadDequeue(t);
+		}
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
@@ -251,9 +261,29 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 
 static void proc_lockForceUnlock(lock_t *lock, int doYield);
+static void _proc_threadSetPriority(thread_t *thread, u8 priority);
 
 
-static void _threads_readyAdd(thread_t *t)
+cpu_context_t *_threads_getUserContext(thread_t *thread)
+{
+	if (thread->process != NULL) {
+		// if (hal_cpuSupervisorMode(thread->context) == 0) {
+		return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
+	}
+	else {
+		return thread->context;
+	}
+}
+
+
+void _threads_setCurrent(thread_t *t)
+{
+	threads_common.currentSc[hal_cpuGetID()] = t->scActive;
+	threads_common.currentThread[hal_cpuGetID()] = t;
+}
+
+
+void _threads_readyAdd(thread_t *t)
 {
 	unsigned int prio = t->priority;
 
@@ -310,9 +340,136 @@ static void _readyRelink(thread_t *t, int queued)
 }
 
 
+static thread_t *_threads_kernelCaller(thread_t *t)
+{
+	thread_t *r = t->reply;
+
+	if (r != NULL) {
+		do {
+			if (r->callReturnable != 0U) {
+				return r;
+			}
+			r = r->replyNext;
+		} while (r != t->reply);
+	}
+
+	return NULL;
+}
+
+
+/*
+ * A ghost never runs again, so the threads waiting on it wait for whoever
+ * destroys it. Blocking it on that thread donates their SCs there.
+ */
+static void _threads_ghostBlockOn(thread_t *ghost, thread_t *destroyer)
+{
+	_sc_reclaim(ghost);
+
+	if ((destroyer != NULL) && (_sc_reaches(destroyer, ghost) == 0)) {
+		_thread_setBlocked(ghost, WAIT_REAP, destroyer);
+		_sc_donate(ghost, destroyer, _sc_best(ghost));
+	}
+}
+
+
+/*
+ * The destroyer blocking on a lock can close a cycle through a ghost waiting
+ * for it. The ghost stops waiting then, so the cycle never forms.
+ */
+static void _threads_ghostBreakCycle(thread_t *owner, const thread_t *current)
+{
+	thread_t *t = owner, *ghost = NULL;
+	unsigned int depth;
+
+	for (depth = 0; (depth < BWI_MAX_CHAIN_DEPTH) && (t != NULL) && (t != current); depth++) {
+		if (t->blockedKind == WAIT_REAP) {
+			ghost = t;
+		}
+		t = _sc_blockedOn(t);
+	}
+
+	if ((t == current) && (ghost != NULL)) {
+		_sc_reclaim(ghost);
+	}
+}
+
+
+int _proc_threadsGone(const process_t *proc)
+{
+	const thread_t *t = proc->threads;
+
+	if (t == NULL) {
+		return 1;
+	}
+
+	do {
+		if ((t->exit == 0U) && (t->state != GHOST)) {
+			return 0;
+		}
+		t = t->procnext;
+	} while (t != proc->threads);
+
+	return 1;
+}
+
+
+void _threads_ghostAdd(thread_t *t)
+{
+	thread_t *r;
+
+	/* A call the kernel made to t cannot wait until t is reaped */
+	while ((r = _threads_kernelCaller(t)) != NULL) {
+		_proc_clearReplyChain(r);
+		_proc_setCallerMsgReturn(t, r, -EPIPE);
+	}
+
+	t->state = GHOST;
+
+	LIB_ASSERT(t->scActive != NULL, "ghosting a thread with no SC");
+	LIB_ASSERT(t->blockedKind == WAIT_NOTHING, "ghosting a blocked thread, kind %u", t->blockedKind);
+
+	(void)_readyUnlink(t);
+	LIST_ADD_EX(&threads_common.ghosts, t, gnext, gprev);
+
+	/* t needs nothing itself any more, only the threads waiting on it do */
+	t->scOwn->priority = MAX_PRIO;
+	_threads_ghostBlockOn(t, threads_common.reaperThread);
+
+	(void)_proc_threadWakeup(&threads_common.reaper);
+}
+
+
 static u8 _readyMin(void)
 {
 	return (threads_common.readyNonempty != 0U) ? (u8)hal_cpuGetFirstBit(threads_common.readyNonempty) : (u8)NPRIOS;
+}
+
+
+void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
+{
+	LIB_ASSERT(_thread_called(caller) == NULL, "reply chain not cleared before returning a message");
+
+	_sc_return(recv, caller);
+	caller->state = READY;
+
+	if (caller->onReady == 0U) {
+		_threads_readyAdd(caller);
+	}
+
+	if (caller->callReturnable == 0) {
+		trace_eventSyscallExit(syscall_msgSend, proc_getTid(caller));
+		caller->context = _threads_getUserContext(caller);
+	}
+	else {
+		/* the kernel context saved in proc_send_ex(), its hal_cpuReschedule() returns retval */
+		caller->callReturnable = 0;
+	}
+	hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)retval);
+
+	/* recv is blocked if it is a ghost answering from thread_destroy() */
+	LIB_ASSERT((recv->scActive != NULL) || (recv->scPushed != NULL), "recv sched null?");
+	LIB_ASSERT(caller->state == READY, "caller should be ready!");
+	LIB_ASSERT((recv->scActive == NULL) || (recv->scActive->t == recv), "badly linked sched context");
 }
 
 
@@ -335,10 +492,37 @@ __attribute__((noreturn)) void threads_halt(void)
 
 static void thread_destroy(thread_t *thread)
 {
-	process_t *process;
+	process_t *process = thread->process;
 	spinlock_ctx_t sc;
+	thread_t *reply, *current;
+	int gone;
 
 	trace_eventThreadEnd(thread);
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	current = _proc_current();
+
+	if (_thread_called(thread) != NULL) {
+		_sc_reclaim(thread);
+		_proc_clearReplyChain(thread);
+	}
+
+	/* the last reference may be dropped by someone other than the reaper */
+	_threads_ghostBlockOn(thread, current);
+	_threads_setCurrent(current);
+
+	gone = ((process != NULL) && (_proc_threadsGone(process) != 0)) ? 1 : 0;
+
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	/*
+	 * Nobody will receive on its ports again. Close them now, while the SCs
+	 * of the senders waiting there still reach us through the ghost, rather
+	 * than after the address space is gone (process_destroy()).
+	 */
+	if (gone != 0) {
+		proc_portsDestroy(process);
+	}
 
 	/* No need to protect thread->locks access with threads_spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
@@ -346,17 +530,63 @@ static void thread_destroy(thread_t *thread)
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
 
+	xfer_abort(thread);
+
+	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
 	hal_spinlockSet(&threads_spinlock, &sc);
+
+	/* may still be sleeping on a port's queue */
+	_proc_threadUnlink(thread);
+
+	_portBusyRemove(thread);
+
+	if ((thread->granted != NULL) && (thread->granted->busyPort != NULL)) {
+		/* killed before using the receiver it was given, give it to someone else */
+		_portReturnReceiver(thread->granted->busyPort, thread->granted);
+	}
+	thread->granted = NULL;
+
+	while (thread->reply != NULL) {
+		reply = thread->reply;
+
+		LIB_ASSERT(reply != thread, "thread replies to itself?");
+		LIB_ASSERT(reply->scActive == NULL, "reply has an active sc?");
+
+		hal_spinlockClear(&threads_spinlock, &sc);
+
+		/*
+		 * Release reply buffers before waking the reply. Safe to
+		 * be done without spinlock when done before _setCallerMsgReturn().
+		 * The reply's SC reaches us through the ghost meanwhile.
+		 */
+		xfer_abort(reply);
+
+		hal_spinlockSet(&threads_spinlock, &sc);
+
+		_proc_clearReplyChain(reply);
+		_proc_setCallerMsgReturn(thread, reply, -EPIPE);
+		_threads_setCurrent(current);
+
+		if (reply->priority < current->priority) {
+			(void)hal_cpuReschedule(&threads_spinlock, &sc);
+			hal_spinlockSet(&threads_spinlock, &sc);
+		}
+	}
+
 	/* scOwn is freed below, so it must not be left donated to someone */
 	_sc_reclaim(thread);
+	_threads_setCurrent(current);
+
 	hal_spinlockClear(&threads_spinlock, &sc);
+
 
 	LIB_ASSERT(thread->scDonated == NULL, "all donations should be reclaimed");
 	LIB_ASSERT(thread->scOwn->t == thread, "own SC still donated?");
 	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
 
-	process = thread->process;
+	xfer_releaseIpcBuf(thread);
+
 	if (process != NULL) {
 		hal_spinlockSet(&threads_spinlock, &sc);
 
@@ -456,6 +686,129 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+/* assumes the aspace of t */
+static void _threads_copyMsgBufResponse(thread_t *t)
+{
+	t->ipc.msgPtr->o.size = t->ipc.reply.size;
+	hal_memcpy(t->ipc.msgPtr->o.raw, t->ipc.reply.raw, MSG_RAW_SIZE);
+	t->ipc.msgPtr->o.err = t->ipc.reply.err;
+}
+
+
+static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
+{
+	process_t *proc;
+	cpu_context_t *signalCtx, *selCtx;
+
+	threads_common.currentSc[hal_cpuGetID()] = selected->scActive;
+	threads_common.currentThread[hal_cpuGetID()] = selected;
+	_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+	selCtx = selected->context;
+
+	proc = selected->process;
+	if ((proc != NULL) && (proc->pmapp != NULL)) {
+		/* Switch address space */
+		pmap_switch(proc->pmapp);
+
+		/* Check for signals to handle */
+		if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
+			signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
+			if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
+				selCtx = signalCtx;
+			}
+		}
+	}
+	else {
+		/* Protects against use after free of process' memory map in SMP environment. */
+		pmap_switch(&threads_common.kmap->pmap);
+	}
+
+	if (selected->ipc.call.replied != 0U) {
+		_threads_copyMsgBufResponse(selected);
+		selected->ipc.call.replied = 0U;
+	}
+
+	if (selected->ipcInterrupted != 0) {
+		selected->ipc.msgPtr->o.err = -EINTR;
+		selected->ipcInterrupted = 0;
+	}
+
+	if (selected->longjmpctx != NULL) {
+		selCtx = selected->longjmpctx;
+		selected->longjmpctx = NULL;
+	}
+
+	if ((void *)selected->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&selected->tls, selCtx);
+	}
+
+	_threads_scheduling(selected);
+	hal_cpuRestore(context, selCtx);
+
+#if defined(STACK_CANARY) || !defined(NDEBUG)
+	if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
+		// LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+		// 		"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+		// 		(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+		// 		selected->kstack, selCtx);
+	}
+
+	LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
+					(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+			"pid: %d, tid: %d, path: %s, user stack corrupted",
+			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
+#endif
+}
+
+
+/* WARN: do not replace with currentSc[cpu]->t, see _readyRemove() */
+static thread_t *_proc_runningThread(void)
+{
+	return threads_common.currentThread[hal_cpuGetID()];
+}
+
+
+cpu_context_t *_threads_switchTo(thread_t *dest)
+{
+	process_t *proc;
+	cpu_context_t *ctx;
+
+	_hal_cpuSetKernelStack(dest->kstack + dest->kstacksz);
+
+	proc = dest->process;
+	if ((proc != NULL) && (proc->pmapp != NULL)) {
+		/* Switch address space */
+		pmap_switch(proc->pmapp);
+	}
+	else {
+		/* Protects against use after free of process' memory map in SMP environment. */
+		pmap_switch(&threads_common.kmap->pmap);
+	}
+
+	LIB_ASSERT(_proc_current() != NULL, "proc current null");
+
+	/* pending signals are delivered when dest exits through ctx, see threads_setupUserReturn() */
+	ctx = _threads_getUserContext(dest);
+
+	if ((void *)dest->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&dest->tls, ctx);
+	}
+
+	LIB_ASSERT(dest->exit == 0, "switching to exiting thread");
+	LIB_ASSERT(dest->scActive != NULL, "dest shed is null");
+
+	threads_common.currentSc[hal_cpuGetID()] = dest->scActive;
+	threads_common.currentThread[hal_cpuGetID()] = dest;
+
+	LIB_ASSERT(_proc_current() == dest, "we are not recv?");
+	LIB_ASSERT(_proc_current()->scActive != NULL, "proc current unschedulable?");
+
+	_threads_scheduling(dest);
+
+	return ctx;
+}
+
+
 static u8 _proc_threadCeilingPriority(thread_t *t)
 {
 	u8 prio = MAX_PRIO, c;
@@ -498,6 +851,7 @@ void _threads_setActiveSc(thread_t *t, sched_context_t *sc)
 		t->scActive->t = t;
 
 		prio = min((int)t->scActive->priority, (int)_proc_threadCeilingPriority(t));
+		_portSenderRequeue(t, (u8)prio);
 
 		/* WARN: never derive t->priorityBase from scActive, it may be a donor's SC */
 		t->priority = (unsigned int)prio;
@@ -513,8 +867,6 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	thread_t *current, *selected = NULL;
 	sched_context_t *sched;
 	unsigned int i;
-	process_t *proc;
-	cpu_context_t *signalCtx, *selCtx;
 	unsigned int cpuId = hal_cpuGetID();
 
 	(void)arg;
@@ -529,9 +881,26 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Save current thread context */
 	if (current != NULL) {
-		current->context = context;
+		if (current->fastpathExitCtx == NULL) {
+			current->context = context;
+		}
+		else {
+			/*
+			 * Current would exit the kernel with fastpathed ctx, so use it instead.
+			 * This is an optimization - we could save the kernel context as
+			 * current->context, but we know it is on the exiting path to switch to
+			 * fastpathExitCtx.
+			 */
+			current->context = current->fastpathExitCtx;
+			current->fastpathExitCtx = NULL;
 
-		/* Move thread to the end of queue */
+			/* see note in proc_send_ex */
+			if (current->saveCtxIn != NULL) {
+				current->saveCtxIn->context = context;
+				current->saveCtxIn = NULL;
+			}
+		}
+
 		if (current->state == READY) {
 			_threads_readyAdd(current);
 			_threads_preempted(current);
@@ -560,9 +929,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			break;
 		}
 
-		selected->state = GHOST;
-		LIST_ADD_EX(&threads_common.ghosts, selected, gnext, gprev);
-		(void)_proc_threadWakeup(&threads_common.reaper);
+		_threads_ghostAdd(selected);
 		selected = NULL;
 
 		/* that may have been the last thread of priority i */
@@ -572,54 +939,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
 
 	if (selected != NULL) {
-		threads_common.currentSc[hal_cpuGetID()] = selected->scActive;
-		threads_common.currentThread[hal_cpuGetID()] = selected;
-		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
-		selCtx = selected->context;
-
-		proc = selected->process;
-		if ((proc != NULL) && (proc->pmapp != NULL)) {
-			/* Switch address space */
-			pmap_switch(proc->pmapp);
-
-			/* Check for signals to handle */
-			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
-				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
-				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
-					selCtx = signalCtx;
-				}
-			}
-		}
-		else {
-			/* Protects against use after free of process' memory map in SMP environment. */
-			pmap_switch(&threads_common.kmap->pmap);
-		}
-
-		if (selected->longjmpctx != NULL) {
-			selCtx = selected->longjmpctx;
-			selected->longjmpctx = NULL;
-		}
-
-		if (selected->tls.tls_base != 0U) {
-			hal_cpuTlsSet(&selected->tls, selCtx);
-		}
-
-		_threads_scheduling(selected);
-		hal_cpuRestore(context, selCtx);
-
-#if defined(STACK_CANARY) || !defined(NDEBUG)
-		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
-			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9U * selected->kstacksz / 10U),
-					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-					selected->kstack, selCtx);
-		}
-
-		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
-						(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-				"pid: %d, tid: %d, path: %s, user stack corrupted",
-				process_getPid(selected->process), proc_getTid(selected), selected->process->path);
-#endif
+		_threads_switchToThread(context, selected);
 	}
 
 	/* Update CPU usage */
@@ -645,26 +965,15 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 }
 
 
-static thread_t *_proc_current(void)
+thread_t *_proc_current(void)
 {
-	thread_t *current;
-
-	current = threads_common.currentThread[hal_cpuGetID()];
-
-	return current;
+	return _proc_runningThread();
 }
 
 
 thread_t *proc_current(void)
 {
-	thread_t *current;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_spinlock, &sc);
-	current = _proc_current();
-	hal_spinlockClear(&threads_spinlock, &sc);
-
-	return current;
+	return _proc_current();
 }
 
 
@@ -748,6 +1057,16 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->blockedOn = NULL;
 	t->blockedKind = WAIT_NOTHING;
 	t->scPushed = NULL;
+	t->waitPort = NULL;
+	t->busyPort = NULL;
+	t->bnext = NULL;
+	t->bprev = NULL;
+	t->granted = NULL;
+	t->longjmpctx = NULL;
+	hal_memset(&t->ipc, 0, sizeof(t->ipc));
+
+	t->fastpathExitCtx = NULL;
+	t->callReturnable = 0;
 
 	t->priorityBase = priority;
 	t->priority = priority;
@@ -770,7 +1089,14 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->scOwn->priorityBase = priority;
 	t->scActive = t->scOwn;
 	t->scDonated = NULL;
+
+	t->reply = NULL;
+	t->replyNext = NULL;
+	t->replyPrev = NULL;
+	t->saveCtxIn = NULL;
+	t->flags = 0;
 	t->onReady = 0;
+	t->ipcInterrupted = 0;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->scActive);
@@ -845,6 +1171,7 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 	}
 
 	queued = _readyUnlink(thread);
+	_portSenderRequeue(thread, priority);
 	thread->priority = priority;
 	_readyRelink(thread, queued);
 
@@ -916,15 +1243,30 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 }
 
 
+/* Assumes threads_spinlock is set. */
+void _wakeReceiver(thread_t *t)
+{
+	LIB_ASSERT((t->state == BLOCKED_ON_RECV) && (t->waitPort != NULL), "not waiting for a message");
+	_threads_setActiveSc(t, _sc_best(t));
+	_proc_threadDequeue(t);
+}
+
+
 static void _thread_interrupt(thread_t *t)
 {
 	LIB_ASSERT(t->state != READY, "interrupting a ready thread?");
 
-	/* _proc_threadDequeue() needs a schedulable thread */
-	_sc_reclaim(t);
+	if (t->state == BLOCKED_ON_RECV) {
+		_wakeReceiver(t);
+		t->ipcInterrupted = 1;
+	}
+	else {
+		/* _proc_threadDequeue() needs a schedulable thread */
+		_sc_reclaim(t);
 
-	LIB_ASSERT(t->scActive != NULL, "interrupting an unschedulable thread?");
-	_proc_threadDequeue(t);
+		LIB_ASSERT(t->scActive != NULL, "interrupting an unschedulable thread?");
+		_proc_threadDequeue(t);
+	}
 
 	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
@@ -944,9 +1286,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	threads_common.currentThread[cpu] = NULL;
 
 	_threads_setActiveSc(t, t->scOwn);
-	t->state = GHOST;
-	LIST_ADD_EX(&threads_common.ghosts, t, gnext, gprev);
-	(void)_proc_threadWakeup(&threads_common.reaper);
+	_threads_ghostAdd(t);
 
 	(void)hal_cpuReschedule(&threads_spinlock, &sc);
 
@@ -995,18 +1335,37 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 
 void proc_reap(void)
 {
-	thread_t *ghost;
 	spinlock_ctx_t sc;
+	thread_t *t = NULL;
+	port_t *p = NULL;
 
 	hal_spinlockSet(&threads_spinlock, &sc);
-	while (threads_common.ghosts == NULL) {
+
+	threads_common.reaperThread = _proc_current();
+
+	while ((threads_common.ghosts == NULL) && (threads_common.ghostPorts == NULL)) {
 		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
 	}
-	ghost = threads_common.ghosts;
-	LIST_REMOVE_EX(&threads_common.ghosts, ghost, gnext, gprev);
+
+	if (threads_common.ghosts != NULL) {
+		t = threads_common.ghosts;
+		LIST_REMOVE_EX(&threads_common.ghosts, t, gnext, gprev);
+	}
+
+	if (threads_common.ghostPorts != NULL) {
+		p = threads_common.ghostPorts;
+		LIST_REMOVE_EX(&threads_common.ghostPorts, p, gnext, gprev);
+	}
+
 	hal_spinlockClear(&threads_spinlock, &sc);
 
-	threads_put(ghost);
+	if (p != NULL) {
+		port_free(p);
+	}
+
+	if (t != NULL) {
+		threads_put(t);
+	}
 }
 
 
@@ -1026,9 +1385,38 @@ void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap
  * Sleeping and waiting
  */
 
-static void _proc_threadDequeue(thread_t *t)
+/* Remove t from its wait queue and the sleeping tree without making it runnable. */
+void _proc_threadUnlink(thread_t *t)
+{
+	port_t *p;
+
+	if (t->wait != NULL) {
+		LIST_REMOVE_EX(t->wait, t, qnext, qprev);
+		t->wait = NULL;
+	}
+
+	/* waitPort must not outlive the queue, see _portSenderRequeue() */
+	p = t->waitPort;
+	if (p != NULL) {
+		t->waitPort = NULL;
+		if (port_release(p) == 0) {
+			LIST_ADD_EX(&threads_common.ghostPorts, p, gnext, gprev);
+			(void)_proc_threadBroadcast(&threads_common.reaper);
+		}
+	}
+
+	if (t->wakeup != 0) {
+		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+		t->wakeup = 0;
+	}
+}
+
+
+void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
+
+	_proc_threadUnlink(t);
 
 	if (t->state == GHOST) {
 		return;
@@ -1038,16 +1426,6 @@ static void _proc_threadDequeue(thread_t *t)
 
 	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
 
-	if (t->wait != NULL) {
-		LIST_REMOVE_EX(t->wait, t, qnext, qprev);
-	}
-
-	if (t->wakeup != 0) {
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
-	}
-
-	t->wakeup = 0;
-	t->wait = NULL;
 	t->state = READY;
 	t->interruptible = 0;
 
@@ -1554,6 +1932,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
+	LIB_ASSERT(proc != NULL, "proc is null");
 
 	unsigned int sig;
 
@@ -1577,24 +1956,46 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
-	cpu_context_t *signalCtx;
+	cpu_context_t *signalCtx, *fpCtx;
 	void *f;
 	void *kstackTop;
 	thread_t *thread;
 
 	hal_spinlockSet(&threads_spinlock, &sc);
 	thread = _proc_current();
+	if (thread->fastpathExitCtx == NULL) {
+		kstackTop = thread->kstack + thread->kstacksz;
+		signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+		hal_cpuSetReturnValue(ctx, retval);
 
-	kstackTop = thread->kstack + thread->kstacksz;
-	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
-	hal_cpuSetReturnValue(ctx, retval);
+		if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
+			f = thread->process->sighandler;
+			hal_spinlockClear(&threads_spinlock, &sc);
+			hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+			/* no return */
+		}
+	}
+	else {
+		fpCtx = thread->fastpathExitCtx;
+		thread->fastpathExitCtx = NULL;
 
-	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
-		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
-		f = thread->process->sighandler;
+		/* thread is a receiver woken by the fastpath, it gets its signals here instead of in the scheduler */
+		if (thread->process != NULL) {
+			signalCtx = (void *)((char *)hal_cpuGetUserSP(fpCtx) - sizeof(*signalCtx));
+			if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+				/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
+				f = thread->process->sighandler;
+				kstackTop = thread->kstack + thread->kstacksz;
+				hal_spinlockClear(&threads_spinlock, &sc);
+				hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+				/* no return */
+			}
+		}
+
 		hal_spinlockClear(&threads_spinlock, &sc);
-		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
-		/* no return */
+		/* FIXME: race with sched is possible here */
+		hal_endSyscall(fpCtx, &sc);
 	}
 
 	hal_spinlockClear(&threads_spinlock, &sc);
@@ -1860,6 +2261,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 				lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 		if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT) {
+			_threads_ghostBreakCycle(lock->owner, current);
 			donated = current->scActive;
 			_thread_setBlocked(current, WAIT_LOCK, lock);
 			_sc_donate(current, lock->owner, donated);
@@ -2506,8 +2908,11 @@ int proc_schedSet(thread_t *t, int policy, sched_params_t *params)
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;
+
 	threads_common.kmap = kmap;
 	threads_common.ghosts = NULL;
+	threads_common.reaperThread = NULL;
+	threads_common.ghostPorts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
 	threads_common.idcounter = 0;
@@ -2559,6 +2964,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.pendsvHandler.n = PENDSV_IRQ;
 	(void)hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
+
+	_msg_init(kmap, kernel);
 
 	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));
 	(void)hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);

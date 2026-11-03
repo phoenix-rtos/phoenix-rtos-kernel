@@ -15,7 +15,7 @@
 #define _PH_MSG_H_
 
 /* Return id, allocated in msgReceive, used in msgRespond */
-typedef int msg_rid_t;
+typedef addr_t msg_rid_t;
 
 /*
  * Message types

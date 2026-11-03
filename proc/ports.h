@@ -21,23 +21,45 @@
 #include "threads.h"
 
 
+/*
+ * Senders and receivers share one queue: PORT_QUEUE_RECV holds idle receivers,
+ * PORT_QUEUE_SEND(prio) the senders waiting for one. A free receiver goes to
+ * the best waiting sender at once, so both kinds are never queued together.
+ *
+ * A nonempty bit may stay set after its slot empties, because interrupts and
+ * thread teardown dequeue threads without knowing about ports; readers clear
+ * such bits. A bit is never clear for a nonempty slot.
+ */
+#define PORT_QUEUE_RECV       0U
+#define PORT_QUEUE_SEND(prio) (1U + (unsigned int)(prio))
+#define PORT_QUEUE_SLOTS      (1U + NPRIOS)
+
+typedef struct {
+	struct _thread_t *slot[PORT_QUEUE_SLOTS];
+	u32 nonempty;
+} port_queue_t;
+
+
 typedef struct _port_t {
 	u32 id;
 	struct _port_t *next;
 	struct _port_t *prev;
 
-	idtree_t rid;
+	struct _port_t *gnext; /* threads_common.ghostPorts linkage */
+	struct _port_t *gprev;
 
-	kmsg_t *kmessages;
 	process_t *owner;
 	int refs; /* atomic: proc_portGet() takes a reference without any lock */
 	int closed;
 
 	spinlock_t spinlock;
-	lock_t lock;
-	thread_t *threads;
-	msg_t *current;
+
+	port_queue_t queue;
+
+	/* Receivers serving a message from this port. */
+	thread_t *busy;
 } port_t;
+
 
 /* FIXME - use int for port handle.
  * Or even better, use dedicated type. */
@@ -65,13 +87,38 @@ void port_free(port_t *p);
 void port_put(port_t *p, int destroy);
 
 
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
-
-
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
-
-
 void _port_init(void);
+
+
+/*
+ * Claims a receiver of port id, waiting for a free one if need be, and returns
+ * the port reference that goes with it in *pp. kernel is nonzero for a call
+ * made by the kernel itself, which must not wait forever on a dead port.
+ */
+int port_claim(u32 id, struct _thread_t *caller, int kernel, port_t **pp, struct _thread_t **recvp);
+
+
+/* The rest require threads_spinlock (threads.h) to be held. */
+
+
+/* Moves a waiting sender to the slot matching its new priority. */
+void _portSenderRequeue(thread_t *t, u8 priority);
+
+
+/* Deregisters t from the port whose message it was serving, if any. */
+void _portBusyRemove(thread_t *t);
+
+
+/* The receiver waiting on p, or NULL if there is none. */
+thread_t *_portWaitingReceiver(port_t *p);
+
+
+/* Makes recv available to senders again. */
+void _portReturnReceiver(port_t *p, thread_t *recv);
+
+
+/* Lets a claimed receiver that is being killed run to its end instead of serving. */
+void _portReleaseDying(thread_t *recv);
 
 
 #endif

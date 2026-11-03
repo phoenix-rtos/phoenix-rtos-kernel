@@ -18,4 +18,10 @@
 void test_msg(void);
 
 
+void test_msg_port(void);
+
+
+void test_msg_storm(void);
+
+
 #endif

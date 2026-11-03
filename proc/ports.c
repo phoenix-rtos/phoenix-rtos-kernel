@@ -12,7 +12,13 @@
  */
 
 #include "ports.h"
+#include "sc.h"
+#include "threads.h"
 #include "lib/lib.h"
+
+
+/* How often a kernel thread waiting for a receiver checks whether the port is dead. */
+#define PORT_KERNEL_RECHECK_US 10000
 
 
 static struct {
@@ -45,32 +51,316 @@ int port_release(port_t *p)
 }
 
 
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
+void _portBusyRemove(thread_t *t)
 {
-	msg_rid_t ret;
+	port_t *p = t->busyPort;
 
-	(void)proc_lockSet(&p->lock);
-	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage, 0);
-	(void)proc_lockClear(&p->lock);
-
-	return ret;
+	if (p != NULL) {
+		LIST_REMOVE_EX(&p->busy, t, bnext, bprev);
+		t->busyPort = NULL;
+	}
 }
 
 
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
+/* Blocks t on one of the port's queue slots, until timeout if nonzero. */
+static void _portQueueAdd(port_t *p, thread_t *t, unsigned int slot, u8 state, time_t timeout)
 {
-	kmsg_t *kmsg;
+	int refs;
 
-	(void)proc_lockSet(&p->lock);
+	p->queue.nonempty |= 1U << slot;
+	_proc_threadEnqueueThread(t, &p->queue.slot[slot], state, timeout, 1);
 
-	kmsg = lib_treeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
-	if (kmsg != NULL) {
-		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
+	t->waitPort = p;
+
+	refs = __atomic_fetch_add(&p->refs, 1, __ATOMIC_RELAXED);
+	LIB_ASSERT(refs > 0, "queueing on a port nobody holds");
+	(void)refs;
+}
+
+
+void _portSenderRequeue(thread_t *t, u8 priority)
+{
+	port_t *p = t->waitPort;
+	unsigned int from, to;
+
+	if (p == NULL) {
+		return;
 	}
 
-	(void)proc_lockClear(&p->lock);
+	from = PORT_QUEUE_SEND(t->priority);
+	to = PORT_QUEUE_SEND(priority);
 
-	return kmsg;
+	if ((from == to) || (t->wait != &p->queue.slot[from])) {
+		/* nothing to do, or waiting as a receiver, which has no priority slot */
+		return;
+	}
+
+	LIST_REMOVE_EX(&p->queue.slot[from], t, qnext, qprev);
+	if (p->queue.slot[from] == NULL) {
+		p->queue.nonempty &= ~(1U << from);
+	}
+
+	LIST_ADD_EX(&p->queue.slot[to], t, qnext, qprev);
+	p->queue.nonempty |= 1U << to;
+	t->wait = &p->queue.slot[to];
+}
+
+
+/* The best-priority sender waiting on p, or NULL if there is none. */
+static thread_t *_portBestSender(port_t *p)
+{
+	u32 mask = p->queue.nonempty & ~(1U << PORT_QUEUE_RECV);
+	unsigned int slot;
+	thread_t *t;
+
+	while (mask != 0U) {
+		slot = hal_cpuGetFirstBit(mask);
+		t = p->queue.slot[slot];
+
+		if (t != NULL) {
+			return t;
+		}
+
+		/* the slot emptied without its bit being cleared, see ports.h */
+		p->queue.nonempty &= ~(1U << slot);
+		mask &= ~(1U << slot);
+	}
+
+	return NULL;
+}
+
+
+/* The receiver waiting on p, or NULL if there is none. */
+thread_t *_portWaitingReceiver(port_t *p)
+{
+	thread_t *recv = p->queue.slot[PORT_QUEUE_RECV];
+
+	if (recv == NULL) {
+		p->queue.nonempty &= ~(1U << PORT_QUEUE_RECV);
+	}
+
+	return recv;
+}
+
+
+/*
+ * Dequeues recv and marks it busy, so only the sender that claimed it can give
+ * it a message. It stays unschedulable until that sender donates its SC.
+ */
+static void _portClaim(port_t *p, thread_t *recv)
+{
+	LIB_ASSERT(recv->busyPort == NULL, "receiver already serves a port");
+
+	_proc_threadUnlink(recv);
+
+	/* READY would make _threads_schedule() put it back on the ready queue */
+	recv->state = BLOCKED_ON_RECV;
+	recv->interruptible = 0;
+
+	recv->busyPort = p;
+	LIST_ADD_EX(&p->busy, recv, bnext, bprev);
+}
+
+
+/* Hands recv to the best waiting sender at once, so a later sender cannot barge past it */
+void _portReturnReceiver(port_t *p, thread_t *recv)
+{
+	thread_t *client;
+
+	_portBusyRemove(recv);
+
+	client = _portBestSender(p);
+	if (client == NULL) {
+		_portQueueAdd(p, recv, PORT_QUEUE_RECV, BLOCKED_ON_RECV, 0);
+		return;
+	}
+
+	_portClaim(p, recv);
+	client->granted = recv;
+
+	_proc_threadDequeue(client);
+}
+
+
+/*
+ * Undoes the claim of a receiver that is being killed. It was not interruptible
+ * while claimed, so it leaves _recvWait() with -EINTR only now, and dies.
+ */
+void _portReleaseDying(thread_t *recv)
+{
+	_portBusyRemove(recv);
+	_threads_setActiveSc(recv, _sc_best(recv));
+	_proc_threadDequeue(recv);
+}
+
+
+/* Claims a receiver for a caller not yet queued. NULL if it has to wait. */
+static thread_t *_portClaimReceiver(port_t *p, thread_t *caller)
+{
+	thread_t *recv, *best;
+
+	for (;;) {
+		recv = caller->granted;
+		if (recv != NULL) {
+			/* given to us while we were waiting */
+			caller->granted = NULL;
+		}
+		else {
+			best = _portBestSender(p);
+			if ((best != NULL) && (best->priority <= caller->priority)) {
+				LIB_ASSERT(_portWaitingReceiver(p) == NULL, "receiver and sender are in the queue at the same time");
+				return NULL;
+			}
+
+			recv = _portWaitingReceiver(p);
+			if (recv != NULL) {
+				_portClaim(p, recv);
+			}
+		}
+
+		/* a receiver killed after it was claimed was not woken, it would get the message dying */
+		if ((recv == NULL) || (recv->exit == 0U)) {
+			return recv;
+		}
+		_portReleaseDying(recv);
+	}
+}
+
+
+/*
+ * 1 if no thread can ever receive on this port again (its owner process is
+ * being destroyed).
+ * WARN: assumes the port is still open, implying that p->owner is still alive.
+ */
+static int _portOwnerGone(const port_t *p)
+{
+	/* a kernel port has no process to lose */
+	return (p->owner != NULL) ? _proc_threadsGone(p->owner) : 0;
+}
+
+
+/* Blocks the caller until a receiver is available, donating its SC to a busy one meanwhile */
+static int _portWait(port_t *p, thread_t *caller, int kernel, spinlock_ctx_t *scp)
+{
+	spinlock_ctx_t tsc;
+	int err;
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	if (caller->exit != 0U) {
+		/* Waiting in this state can lead to becoming a hanging zombie */
+		hal_spinlockClear(&threads_spinlock, &tsc);
+		return -EINTR;
+	}
+
+	if (_portOwnerGone(p) != 0) {
+		hal_spinlockClear(&threads_spinlock, &tsc);
+		return -EINVAL;
+	}
+
+	/*
+	 * Nothing wakes a sender if the owner loses its last receiver later. A user
+	 * call gets -EINVAL when thread_destroy() closes the port, but a kernel call
+	 * may come from the reaper itself (closing files of a dead process), so it
+	 * rechecks periodically.
+	 */
+	_portQueueAdd(p, caller, PORT_QUEUE_SEND(caller->priority), BLOCKED_ON_SEND,
+			(kernel != 0) ? (_proc_gettimeRaw() + PORT_KERNEL_RECHECK_US) : 0);
+	_threads_enqueued(caller);
+
+	/* tsc and scp are swapped intentionally, we need to enable interrupts */
+	hal_spinlockClear(&p->spinlock, &tsc);
+	err = hal_cpuReschedule(&threads_spinlock, scp);
+	hal_spinlockSet(&p->spinlock, scp);
+
+	return err;
+}
+
+
+int port_claim(u32 id, thread_t *caller, int kernel, port_t **pp, thread_t **recvp)
+{
+	spinlock_ctx_t sc, tsc;
+	thread_t *recv;
+	port_t *p = proc_portGet(id);
+	int err;
+
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	if (p->closed != 0) {
+		err = -EINVAL;
+	}
+	else {
+		for (;;) {
+			hal_spinlockSet(&threads_spinlock, &tsc);
+			recv = _portClaimReceiver(p, caller);
+			hal_spinlockClear(&threads_spinlock, &tsc);
+
+			if (recv != NULL) {
+				*recvp = recv;
+				err = EOK;
+				break;
+			}
+
+			if (p->closed != 0) {
+				err = -EINVAL;
+				break;
+			}
+
+			err = _portWait(p, caller, kernel, &sc);
+			if (err == -ETIME) {
+				continue;
+			}
+			if (err < 0) {
+				hal_spinlockSet(&threads_spinlock, &tsc);
+				if (caller->granted != NULL) {
+					/* got a receiver at the same time as the error, release it */
+					_portReturnReceiver(p, caller->granted);
+					caller->granted = NULL;
+				}
+				hal_spinlockClear(&threads_spinlock, &tsc);
+
+				break;
+			}
+		}
+	}
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	if (err < 0) {
+		port_put(p, 0);
+		return err;
+	}
+
+	*pp = p;
+
+	return EOK;
+}
+
+
+/* Needs p->spinlock. */
+static void _portWakeAll(port_t *p)
+{
+	spinlock_ctx_t sc;
+	unsigned int slot;
+	thread_t *t;
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+
+	while ((t = p->queue.slot[PORT_QUEUE_RECV]) != NULL) {
+		_wakeReceiver(t);
+	}
+
+	for (slot = PORT_QUEUE_SEND(0); slot < PORT_QUEUE_SLOTS; slot++) {
+		while ((t = p->queue.slot[slot]) != NULL) {
+			_proc_threadDequeue(t);
+		}
+	}
+
+	p->queue.nonempty = 0;
+
+	hal_spinlockClear(&threads_spinlock, &sc);
 }
 
 
@@ -106,6 +396,19 @@ port_t *proc_portGet(u32 id)
 void port_free(port_t *p)
 {
 	spinlock_ctx_t sc;
+	thread_t *t;
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+
+	/* anyone still queued would be holding a reference of their own */
+	LIB_ASSERT(p->queue.slot[PORT_QUEUE_RECV] == NULL, "receivers should already be popped from the port");
+	LIB_ASSERT(_portBestSender(p) == NULL, "senders should already be woken up");
+
+	while ((t = p->busy) != NULL) {
+		_portBusyRemove(t);
+	}
+
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	if (p->next != NULL) {
 		proc_lockSet(&p->owner->lock);
@@ -133,9 +436,8 @@ void port_put(port_t *p, int destroy)
 
 	if (port_release(p) != 0) {
 		if (destroy != 0) {
-			/* Wake receivers up */
 			hal_spinlockSet(&p->spinlock, &sc);
-			(void)proc_threadBroadcast(&p->threads);
+			_portWakeAll(p);
 			hal_spinlockClear(&p->spinlock, &sc);
 		}
 
@@ -162,7 +464,6 @@ static port_t *_port_alloc(void)
 		port = vm_kmalloc(sizeof(port_t));
 		if (port != NULL) {
 			hal_spinlockCreate(&port->spinlock, "port.spinlock");
-			(void)proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
 		}
 	}
 
@@ -186,13 +487,13 @@ int proc_portCreate(u32 *id)
 	}
 
 	port->next = NULL;
-	port->kmessages = NULL;
-	lib_idtreeInit(&port->rid);
-	port->threads = NULL;
-	port->current = NULL;
+	port->busy = NULL;
 	port->refs = 1;
 	port->closed = 0;
+
 	port->owner = proc;
+
+	hal_memset(&port->queue, 0, sizeof(port->queue));
 
 	/* The port is fully initialized before it becomes reachable by its id. */
 	for (;;) {

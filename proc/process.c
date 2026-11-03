@@ -1692,6 +1692,11 @@ static int process_execve(thread_t *current)
 	}
 	else {
 		/* Reinitialize process */
+
+		/* TODO: moved here, is ok? */
+		xfer_abort(current);
+		xfer_releaseIpcBuf(current);
+
 		map = current->process->mapp;
 		imap = current->process->imapp;
 		proc_changeMap(current->process, NULL, NULL, NULL);
