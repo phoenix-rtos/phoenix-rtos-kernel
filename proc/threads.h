@@ -16,6 +16,7 @@
 #define _PH_PROC_THREADS_H_
 
 #include "hal/hal.h"
+#include "include/msg.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
 #include "include/sched.h"
@@ -37,12 +38,38 @@
 #define THREAD_END_NOW 2U
 
 /* Thread states */
-#define READY 0U
-#define SLEEP 1U
-#define GHOST 2U
+#define READY            0U
+#define SLEEP            1U
+#define GHOST            2U
+#define BLOCKED_ON_RECV  3U
+#define BLOCKED_ON_SEND  4U
+#define BLOCKED_ON_REPLY 5U
 
 #define WAIT_NOTHING 0U
 #define WAIT_LOCK    1U /* a PROTO_INHERIT lock_t, we wait for its owner */
+#define WAIT_CALL    3U /* thread_t, the IPC callee serving our message */
+#define WAIT_REAP    4U /* thread_t, a ghost waits for the thread that will destroy it */
+
+
+typedef struct _xferBuf_t {
+	/* TODO: do this as a private impl state */
+#ifndef NOMMU
+	void *win;
+
+	size_t boffs;
+	page_t *bp;
+
+	size_t eoffs;
+	page_t *ep;
+#else
+	void *orig;
+#endif
+
+	void *w;
+	size_t size;
+	vm_map_t *map;
+} xferBuf_t;
+
 
 typedef struct _thread_t {
 	struct _lock_t *locks;
@@ -73,14 +100,28 @@ typedef struct _thread_t {
 	void *blockedOn;           /* blockedKind declares type */
 	sched_context_t *scPushed; /* SC this thread donated through _sc_push(), if any */
 
+	struct _port_t *waitPort;
+	struct _port_t *busyPort;
+	struct _thread_t *bnext;
+	struct _thread_t *bprev;
+	struct _thread_t *granted;
+
 	unsigned int prioceilingLocks : 8;
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
-	unsigned int state : 2;
+	unsigned int state : 4;
 	unsigned int blockedKind : 3;
 	unsigned int interruptible : 1;
 	unsigned int exit : 2;
-	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
+	unsigned int ipcInterrupted : 1;
+	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive */
+	unsigned int callReturnable : 1;
+
+	/* fastpath related */
+	struct _thread_t *reply;
+	struct _thread_t *replyNext;
+	struct _thread_t *replyPrev;
+	struct _thread_t *saveCtxIn;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -96,7 +137,33 @@ typedef struct _thread_t {
 	void *execdata;
 
 	cpu_context_t *context;
+	cpu_context_t *fastpathExitCtx;
 	cpu_context_t *longjmpctx;
+
+	struct {
+		struct {
+			xferBuf_t ibl;
+			xferBuf_t obl;
+			u8 active;
+			u8 ikind;
+			u8 okind;
+			u8 replied;
+			size_t osize;
+		} call;
+
+		struct {
+			unsigned char raw[MSG_RAW_SIZE];
+			int err;
+			size_t size;
+		} reply;
+
+		/* pointers in process' aspace */
+		msg_t *msgPtr;
+		msg_rid_t *ridPtr;
+	} ipc;
+
+	/* TODO: merge with ipc.flags? */
+	int flags; /* atomic: IPC_DELIVERED is set by other threads */
 } thread_t;
 
 
@@ -112,6 +179,12 @@ static inline int proc_getTid(const thread_t *t)
 static inline struct _lock_t *_thread_waitingOn(const thread_t *t)
 {
 	return (t->blockedKind == WAIT_LOCK) ? (struct _lock_t *)t->blockedOn : NULL;
+}
+
+
+static inline thread_t *_thread_called(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_CALL) ? (thread_t *)t->blockedOn : NULL;
 }
 
 
@@ -132,6 +205,9 @@ static inline void _thread_clearBlocked(thread_t *t, unsigned int kind)
 
 
 thread_t *proc_current(void);
+
+
+thread_t *_proc_current(void);
 
 
 void threads_canaryInit(thread_t *t, void *ustack);
@@ -239,7 +315,22 @@ extern spinlock_t threads_spinlock;
 void _threads_setActiveSc(thread_t *t, sched_context_t *sc);
 
 
+time_t _proc_gettimeRaw(void);
+
+
 void _proc_threadEnqueueThread(thread_t *t, thread_t **queue, u8 state, time_t timeout, int interruptible);
+
+
+void _proc_threadUnlink(thread_t *t);
+
+
+void _proc_threadDequeue(thread_t *t);
+
+
+void _threads_enqueued(thread_t *t);
+
+
+void _wakeReceiver(thread_t *t);
 
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig);
@@ -252,6 +343,25 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 __attribute__((noreturn)) void threads_halt(void);
+
+
+cpu_context_t *_threads_switchTo(thread_t *dest);
+
+
+cpu_context_t *_threads_getUserContext(thread_t *thread);
+
+
+void _threads_setCurrent(thread_t *t);
+
+
+void _threads_readyAdd(thread_t *t);
+
+
+void _threads_ghostAdd(thread_t *t);
+
+
+/* 1 if every thread of proc is dying or a ghost. */
+int _proc_threadsGone(const process_t *proc);
 
 
 #endif

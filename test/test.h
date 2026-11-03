@@ -17,5 +17,6 @@
 
 #include "vm.h"
 #include "proc.h"
+#include "msg.h"
 
 #endif

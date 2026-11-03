@@ -21,26 +21,35 @@
 #include "threads.h"
 
 
+#define PORT_QUEUE_RECV       0U
+#define PORT_QUEUE_SEND(prio) (1U + (unsigned int)(prio))
+#define PORT_QUEUE_SLOTS      (1U + NPRIOS)
+
+typedef struct {
+	struct _thread_t *slot[PORT_QUEUE_SLOTS];
+	u32 nonempty;
+} port_queue_t;
+
+
 typedef struct _port_t {
 	u32 id;
 	struct _port_t *next;
 	struct _port_t *prev;
 
-	idtree_t rid;
+	struct _port_t *gnext; /* threads_common.ghostPorts linkage */
+	struct _port_t *gprev;
 
-	kmsg_t *kmessages;
 	process_t *owner;
 	int refs; /* atomic: proc_portGet() takes a reference without any lock */
 	int closed;
 
 	spinlock_t spinlock;
-	lock_t lock;
-	thread_t *threads;
-	msg_t *current;
+
+	port_queue_t queue;
+
+	thread_t *busy; /* Receivers handling a message from this port */
 } port_t;
 
-/* FIXME - use int for port handle.
- * Or even better, use dedicated type. */
 
 int proc_portCreate(u32 *id);
 
@@ -63,13 +72,28 @@ void port_free(port_t *p);
 void port_put(port_t *p, int destroy);
 
 
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
-
-
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
-
-
 void _port_init(void);
+
+
+int port_claim(u32 id, struct _thread_t *caller, int kernel, port_t **pp, struct _thread_t **recvp);
+
+
+/* The rest require threads_spinlock (threads.h) to be held. */
+
+
+void _portSenderRequeue(thread_t *t, u8 priority);
+
+
+void _portBusyRemove(thread_t *t);
+
+
+thread_t *_portWaitingReceiver(port_t *p);
+
+
+void _portReturnReceiver(port_t *p, thread_t *recv);
+
+
+void _portReleaseDying(thread_t *recv);
 
 
 #endif

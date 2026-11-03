@@ -52,7 +52,12 @@ void _sc_recalculate(thread_t *t)
 
 static void _sc_unblock(thread_t *t)
 {
+	/*
+	 * WAIT_CALL cleared by _proc_clearReplyChain(), which has to unlink the
+	 * callee's reply list atomically.
+	 */
 	_thread_clearBlocked(t, WAIT_LOCK);
+	_thread_clearBlocked(t, WAIT_REAP);
 }
 
 
@@ -62,6 +67,12 @@ thread_t *_sc_blockedOn(thread_t *t)
 		case WAIT_LOCK:
 			LIB_ASSERT_ALWAYS(t->blockedOn != NULL, "tid %d: WAIT_LOCK with no lock", proc_getTid(t));
 			return ((lock_t *)t->blockedOn)->owner;
+
+		case WAIT_CALL:
+		case WAIT_REAP:
+			LIB_ASSERT_ALWAYS(t->blockedOn != NULL, "tid %d: WAIT kind %u with no target",
+					proc_getTid(t), t->blockedKind);
+			return (thread_t *)t->blockedOn;
 
 		default:
 			return NULL;
@@ -170,7 +181,7 @@ void _sc_reclaim(thread_t *t)
 	thread_t *next;
 
 	if (t->scPushed == NULL) {
-		/* donated nothing, not blocked on anyone */
+		/* donated nothing: not blocked on anyone, or waiting for a message */
 		_sc_unblock(t);
 		return;
 	}
@@ -192,11 +203,12 @@ void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 }
 
 
-/* to must no longer be blocked on anyone. */
+/* to must no longer be blocked on anyone. from may have passed the SC on (a ghost does). */
 void _sc_return(thread_t *from, thread_t *to)
 {
 	LIB_ASSERT((to->scPushed != NULL) && ((to->scPushed->t == from) || (from->scPushed == to->scPushed)),
 			"returning an SC that from doesn't hold");
+	LIB_ASSERT(_thread_called(to) == NULL, "_sc_return but called not cleared?");
 
 	_sc_pop(to, from);
 
@@ -214,7 +226,7 @@ void _sc_migrate(thread_t *from, thread_t *queue, thread_t *to)
 	thread_t *t = queue->qnext;
 	sched_context_t *sc;
 
-	/* from may pass the best of them on, so take that back first */
+	/* from may pass the best of them on (a ghost does), so take that back first */
 	if (from->scPushed != NULL) {
 		_sc_pop(from, _sc_blockedOn(from));
 	}
