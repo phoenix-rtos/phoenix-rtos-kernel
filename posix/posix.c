@@ -46,13 +46,6 @@
 /* NOTE: socket/port ids are limited to 32-bits, hence possible downcast of oid.id from id_t to unsigned int */
 
 
-typedef struct {
-	oid_t oid;
-	unsigned int flags;
-	unsigned short types;
-} evsub_t;
-
-
 typedef struct _event_t {
 	oid_t oid;
 	unsigned int type;
