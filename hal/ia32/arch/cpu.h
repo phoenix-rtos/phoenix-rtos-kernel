@@ -29,6 +29,8 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 2
+
 
 /* Bitfields used to construct interrupt descriptors */
 #define IGBITS_DPL0   0x00000000U

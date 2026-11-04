@@ -42,6 +42,8 @@
 
 #endif
 
+#define HAL_TLS_VARIANT 2
+
 #define CPU_CTX_SIZE 0xd8
 #define CPU_EXC_SIZE 0xe0
 

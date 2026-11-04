@@ -339,5 +339,5 @@ void hal_cpuSmpSync(void)
 /* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8U;
+	*(ptr_t *)tls->arm_m_tls = hal_tlsTp(tls);
 }
