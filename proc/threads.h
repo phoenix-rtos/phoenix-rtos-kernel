@@ -66,7 +66,6 @@ typedef struct _thread_t {
 	struct _thread_t *procprev;
 
 	int refs;
-	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	time_t wakeup;

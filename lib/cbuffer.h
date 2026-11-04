@@ -23,7 +23,7 @@
 
 typedef struct {
 	size_t sz, r, w;
-	unsigned char full, mark;
+	unsigned char full;
 	void *data;
 } cbuffer_t;
 

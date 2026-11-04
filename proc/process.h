@@ -55,8 +55,6 @@ typedef struct _process_t {
 	int exit;
 
 	unsigned int lazy : 1;
-	unsigned int lgap : 1;
-	unsigned int rgap : 1;
 	unsigned int posix : 1;
 
 	/* TODO: Process shall keep information permissions (uid, euid, suid, gid, egid, sgid, umask) */
