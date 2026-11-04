@@ -31,9 +31,43 @@ typedef struct _hal_tls_t {
 	ptr_t tls_base;
 	ptr_t arm_m_tls;
 	size_t tdata_sz;
-	size_t tbss_sz;
+	size_t tls_memsz;
+	size_t tls_align;
 	size_t tls_sz;
 } hal_tls_t;
+
+
+#if HAL_TLS_VARIANT == 1
+
+static inline size_t hal_tlsTcbSpace(const hal_tls_t *tls)
+{
+	size_t align = (tls->tls_align != 0U) ? tls->tls_align : 1U;
+	return (HAL_TLS_TCBSZ + align - 1U) & ~(align - 1U);
+}
+
+
+static inline ptr_t hal_tlsTp(const hal_tls_t *tls)
+{
+	return tls->tls_base - hal_tlsTcbSpace(tls);
+}
+
+#elif HAL_TLS_VARIANT == 2
+
+static inline size_t hal_tlsTcbSpace(const hal_tls_t *tls)
+{
+	(void)tls;
+	return 0U;
+}
+
+
+static inline ptr_t hal_tlsTp(const hal_tls_t *tls)
+{
+	return tls->tls_base + tls->tls_memsz;
+}
+
+#else
+#error "HAL_TLS_VARIANT must be 1 or 2"
+#endif
 
 
 void *hal_syspageRelocate(void *data);

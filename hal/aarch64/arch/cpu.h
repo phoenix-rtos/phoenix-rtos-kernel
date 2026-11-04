@@ -31,6 +31,9 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 1
+#define HAL_TLS_TCBSZ   16U
+
 #define MODE_nAARCH64 0x10U
 #define MODE_EL0      0x0U
 #define MODE_EL1_SP0  0x4U

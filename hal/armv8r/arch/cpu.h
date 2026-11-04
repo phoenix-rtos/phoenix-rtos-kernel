@@ -29,6 +29,9 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 1
+#define HAL_TLS_TCBSZ   8U
+
 /* ARMv8 processor modes */
 #define MODE_USR 0x10U /* unprivileged mode in which most applications run                           */
 #define MODE_FIQ 0x11U /* entered on an FIQ interrupt exception                                      */

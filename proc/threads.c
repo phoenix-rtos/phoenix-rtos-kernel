@@ -905,7 +905,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
 
-	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
+	if (process != NULL && process->tls.tls_memsz != 0U) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			vm_kfree(t->kstack);
@@ -914,11 +914,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 		}
 	}
 	else {
-		t->tls.tls_base = 0;
-		t->tls.tdata_sz = 0;
-		t->tls.tbss_sz = 0;
-		t->tls.tls_sz = 0;
-		t->tls.arm_m_tls = 0;
+		hal_memset(&t->tls, 0, sizeof(t->tls));
 	}
 
 	if (thread_alloc(t) < 0) {

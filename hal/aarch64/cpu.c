@@ -287,10 +287,7 @@ char *hal_cpuFeatures(char *features, size_t len)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	/* In theory there should be 16-byte thread control block but
-	 * it's stored elsewhere so we need to subtract 16 from the pointer
-	 */
-	ptr_t ptr = tls->tls_base - 16U;
+	ptr_t ptr = hal_tlsTp(tls);
 	sysreg_write(tpidr_el0, ptr);
 	hal_cpuDataSyncBarrier();
 }
