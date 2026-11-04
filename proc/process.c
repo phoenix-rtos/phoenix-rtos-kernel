@@ -311,6 +311,19 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 }
 
 
+static void process_tlsFromPhdr(hal_tls_t *tls, ptr_t *tbssAddr, ptr_t vaddr, size_t filesz, size_t memsz, size_t align)
+{
+	if (align == 0U) {
+		align = 1U;
+	}
+
+	tls->tls_base = vaddr;
+	tls->tdata_sz = filesz;
+	tls->tbss_sz = ((memsz + align - 1U) & ~(align - 1U)) - filesz;
+	*tbssAddr = vaddr + filesz;
+}
+
+
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
 	if (tls->tls_base != 0U) {
@@ -540,6 +553,10 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 			*ustacksz = round_page((size_t)phdr->p_memsz);
 		}
 
+		if ((phdr->p_type == PT_TLS) && (phdr->p_memsz != 0U)) {
+			process_tlsFromPhdr(tls, tbssAddr, (ptr_t)phdr->p_vaddr, (size_t)phdr->p_filesz, (size_t)phdr->p_memsz, (size_t)phdr->p_align);
+		}
+
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
 			phdr++;
 			continue;
@@ -630,6 +647,10 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
 			*ustacksz = (size_t)round_page(phdr->p_memsz);
+		}
+
+		if ((phdr->p_type == PT_TLS) && (phdr->p_memsz != 0U)) {
+			process_tlsFromPhdr(tls, tbssAddr, (ptr_t)phdr->p_vaddr, (size_t)phdr->p_filesz, (size_t)phdr->p_memsz, (size_t)phdr->p_align);
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
@@ -983,6 +1004,17 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		}
 		else {
 			/* No action required */
+		}
+	}
+
+	for (i = 0U; i < ehdr->e_phnum; i++) {
+		phdrCurr = &phdr[i];
+		if ((phdrCurr->p_type == PT_TLS) && (phdrCurr->p_memsz != 0U)) {
+			relptr = (void *)phdrCurr->p_vaddr;
+			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+				return -ENOEXEC;
+			}
+			process_tlsFromPhdr(&tlsNew, &tbssAddr, (ptr_t)relptr, phdrCurr->p_filesz, phdrCurr->p_memsz, phdrCurr->p_align);
 		}
 	}
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
