@@ -342,6 +342,18 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 }
 
 
+static int process_validateTlsPhdr(u64 filesz, u64 memsz, u64 align)
+{
+	if ((filesz > memsz) || (memsz > ((size_t)-1 >> 1))) {
+		return -ENOEXEC;
+	}
+	if ((align > SIZE_PAGE) || ((align & (align - 1U)) != 0U)) {
+		return -ENOEXEC;
+	}
+	return 0;
+}
+
+
 /* Ensure kernel won't make a bad access on a malformed elf during load. */
 static int process_validateElf32(void *iehdr, size_t size)
 {
@@ -373,6 +385,9 @@ static int process_validateElf32(void *iehdr, size_t size)
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (phdr[i].p_type != PT_LOAD) {
 			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0) {
+				return -ENOEXEC;
+			}
+			if ((phdr[i].p_type == PT_TLS) && (process_validateTlsPhdr(phdr[i].p_filesz, phdr[i].p_memsz, phdr[i].p_align) < 0)) {
 				return -ENOEXEC;
 			}
 			continue;
@@ -449,6 +464,9 @@ static int process_validateElf64(void *iehdr, size_t size)
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (phdr[i].p_type != PT_LOAD) {
 			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, (size_t)phdr[i].p_filesz) == 0) {
+				return -ENOEXEC;
+			}
+			if ((phdr[i].p_type == PT_TLS) && (process_validateTlsPhdr(phdr[i].p_filesz, phdr[i].p_memsz, phdr[i].p_align) < 0)) {
 				return -ENOEXEC;
 			}
 			continue;
