@@ -78,6 +78,9 @@ int syscalls_sys_mmap(u8 *ustack)
 
 	flags = (vm_flags_t)sflags;
 	size = round_page(size);
+	if (size == SIZE_T_MAX) {
+		return -EINVAL;
+	}
 
 	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
 		return -EFAULT;
@@ -138,6 +141,10 @@ int syscalls_sys_munmap(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, size, 1U);
 
 	size = round_page(size);
+	if (size == SIZE_T_MAX) {
+		return -EINVAL;
+	}
+
 	err = vm_munmap(proc->mapp, vaddr, size);
 	if (err < 0) {
 		return err;
@@ -589,7 +596,6 @@ int syscalls_sys_cpuTime(u8 *ustack)
 int syscalls_sys_threadsinfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	size_t infosz;
 	int n, tid;
 	unsigned int flags;
 	threadinfo_t *info;
@@ -608,11 +614,7 @@ int syscalls_sys_threadsinfo(u8 *ustack)
 			return -EFAULT;
 		}
 
-		if (__builtin_mul_overflow(sizeof(*info), (size_t)n, &infosz)) {
-			return -EOVERFLOW;
-		}
-
-		if (vm_mapBelongs(proc, info, infosz) < 0) {
+		if (vm_mapBelongsObjects(proc, info, (size_t)n, sizeof(*info)) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1913,7 +1915,7 @@ ssize_t syscalls_sys_recvmsg(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongsObjects(proc, msg->msg_iov, (size_t)msg->msg_iovlen, sizeof(*msg->msg_iov)) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1951,7 +1953,7 @@ ssize_t syscalls_sys_sendmsg(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongsObjects(proc, msg->msg_iov, (size_t)msg->msg_iovlen, sizeof(*msg->msg_iov)) < 0)) {
 		return -EFAULT;
 	}
 
@@ -2085,13 +2087,7 @@ int syscalls_sys_poll(u8 *ustack)
 	GETFROMSTACK(ustack, nfds_t, nfds, 1U);
 	GETFROMSTACK(ustack, int, timeout_ms, 2U);
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "Check needed on NOMMU + nfds_t type can change." */
-	if (nfds > (size_t)-1 / sizeof(*fds)) {
-		/* nfds * sizeof(*fds) would overflow */
-		return -EINVAL;
-	}
-
-	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds)) < 0) {
+	if (vm_mapBelongsObjects(proc, fds, nfds, sizeof(*fds)) < 0) {
 		return -EFAULT;
 	}
 
