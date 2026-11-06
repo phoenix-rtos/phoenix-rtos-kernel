@@ -209,11 +209,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 
 	process->sigpend = 0;
 	process->sigactions = NULL;
-	process->tls.tls_base = 0;
-	process->tls.tbss_sz = 0;
-	process->tls.tdata_sz = 0;
-	process->tls.tls_sz = 0;
-	process->tls.arm_m_tls = 0;
+	hal_memset(&process->tls, 0, sizeof(process->tls));
 
 #ifndef NOMMU
 	process->lazy = 0;
@@ -311,21 +307,24 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 }
 
 
-static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
+static size_t process_tlsOffset(const hal_tls_t *tls)
 {
-	if (tls->tls_base != 0U) {
-		process_tls->tls_base = tls->tls_base;
+	size_t align = (tls->tls_align > sizeof(ptr_t)) ? tls->tls_align : sizeof(ptr_t);
+	return ((hal_tlsTcbSpace(tls) + tls->tls_memsz + align - 1U) & ~(align - 1U)) - tls->tls_memsz;
+}
+
+
+static void process_tlsFromPhdr(hal_tls_t *tls, ptr_t vaddr, size_t filesz, size_t memsz, size_t align)
+{
+	if (align == 0U) {
+		align = 1U;
 	}
-	else if (tbssAddr != 0U) {
-		process_tls->tls_base = tbssAddr;
-	}
-	else {
-		process_tls->tls_base = 0;
-	}
-	process_tls->tdata_sz = tls->tdata_sz;
-	process_tls->tbss_sz = tls->tbss_sz;
-	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1U) & ~(sizeof(void *) - 1U);
-	process_tls->arm_m_tls = tls->arm_m_tls;
+
+	tls->tls_base = vaddr;
+	tls->tdata_sz = filesz;
+	tls->tls_align = align;
+	tls->tls_memsz = (memsz + align - 1U) & ~(align - 1U);
+	tls->tls_sz = process_tlsOffset(tls) + tls->tls_memsz + sizeof(ptr_t);
 }
 
 
@@ -340,6 +339,18 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 		((ptr_t)ptrStart >= (ptr_t)mapStart) && ((ptr_t)ptrStart < (ptr_t)ptrEnd))) ?
 		1 : 0;
 	/* clang-format on */
+}
+
+
+static int process_validateTlsPhdr(u64 filesz, u64 memsz, u64 align)
+{
+	if ((filesz > memsz) || (memsz > ((size_t)-1 >> 1))) {
+		return -ENOEXEC;
+	}
+	if ((align > SIZE_PAGE) || ((align & (align - 1U)) != 0U)) {
+		return -ENOEXEC;
+	}
+	return 0;
 }
 
 
@@ -374,6 +385,9 @@ static int process_validateElf32(void *iehdr, size_t size)
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (phdr[i].p_type != PT_LOAD) {
 			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0) {
+				return -ENOEXEC;
+			}
+			if ((phdr[i].p_type == PT_TLS) && (process_validateTlsPhdr(phdr[i].p_filesz, phdr[i].p_memsz, phdr[i].p_align) < 0)) {
 				return -ENOEXEC;
 			}
 			continue;
@@ -452,6 +466,9 @@ static int process_validateElf64(void *iehdr, size_t size)
 			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, (size_t)phdr[i].p_filesz) == 0) {
 				return -ENOEXEC;
 			}
+			if ((phdr[i].p_type == PT_TLS) && (process_validateTlsPhdr(phdr[i].p_filesz, phdr[i].p_memsz, phdr[i].p_align) < 0)) {
+				return -ENOEXEC;
+			}
 			continue;
 		}
 
@@ -494,7 +511,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls)
 {
 	void *vaddr;
 	Elf32_Ehdr *ehdr = iehdr;
@@ -514,17 +531,8 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	shstrshdr = shdr + ehdr->e_shstrndx;
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
-	/* Find .tdata and .tbss sections */
 	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
-			tls->tls_base = (ptr_t)shdr->sh_addr;
-			tls->tdata_sz += shdr->sh_size;
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
-			*tbssAddr = (ptr_t)shdr->sh_addr;
-			tls->tbss_sz += shdr->sh_size;
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
 		}
 		else {
@@ -538,6 +546,10 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
 			*ustacksz = round_page((size_t)phdr->p_memsz);
+		}
+
+		if ((phdr->p_type == PT_TLS) && (phdr->p_memsz != 0U)) {
+			process_tlsFromPhdr(tls, (ptr_t)phdr->p_vaddr, (size_t)phdr->p_filesz, (size_t)phdr->p_memsz, (size_t)phdr->p_align);
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
@@ -587,7 +599,7 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 }
 
 
-static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls)
 {
 	void *vaddr;
 	size_t i, memsz, filesz, misalign;
@@ -606,17 +618,8 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	shstrshdr = shdr + ehdr->e_shstrndx;
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
-	/* Find .tdata and .tbss sections */
 	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
-			tls->tls_base = (ptr_t)shdr->sh_addr;
-			tls->tdata_sz += (size_t)shdr->sh_size;
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
-			*tbssAddr = (ptr_t)shdr->sh_addr;
-			tls->tbss_sz += (size_t)shdr->sh_size;
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
 		}
 		else {
@@ -630,6 +633,10 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
 			*ustacksz = (size_t)round_page(phdr->p_memsz);
+		}
+
+		if ((phdr->p_type == PT_TLS) && (phdr->p_memsz != 0U)) {
+			process_tlsFromPhdr(tls, (ptr_t)phdr->p_vaddr, (size_t)phdr->p_filesz, (size_t)phdr->p_memsz, (size_t)phdr->p_align);
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
@@ -687,13 +694,8 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	size_t ustacksz = SIZE_USTACK;
 	int err = EOK;
 	hal_tls_t tlsNew;
-	ptr_t tbssAddr = 0;
 
-	tlsNew.tls_base = 0; /* NULL */
-	tlsNew.tdata_sz = 0;
-	tlsNew.tbss_sz = 0;
-	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = 0; /* NULL */
+	hal_memset(&tlsNew, 0, sizeof(tlsNew));
 
 	size = round_page(size);
 
@@ -706,13 +708,13 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		/* 32-bit binary */
 		case 1:
 			*entry = (void *)(ptr_t)((Elf32_Ehdr *)ehdr)->e_entry;
-			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew);
 			break;
 
 		/* 64-bit binary */
 		case 2:
 			*entry = (void *)(ptr_t)ehdr->e_entry;
-			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew);
 			break;
 
 		default:
@@ -725,7 +727,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		return err;
 	}
 
-	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+	process->tls = tlsNew;
 
 	/* Allocate and map user stack */
 	stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
@@ -787,7 +789,6 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	struct _reloc reloc[8];
 	size_t stacksz = SIZE_USTACK;
 	hal_tls_t tlsNew;
-	ptr_t tbssAddr = 0;
 
 	if (o != VM_OBJ_PHYSMEM) {
 		return -ENOEXEC;
@@ -951,31 +952,12 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		}
 	}
 
-	tlsNew.tls_base = 0;
-	tlsNew.tdata_sz = 0;
-	tlsNew.tbss_sz = 0;
-	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = 0;
+	hal_memset(&tlsNew, 0, sizeof(tlsNew));
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
-	/* Perform .tdata, .tbss and .armtls relocations */
 	for (i = 0U; i < ehdr->e_shnum; i++) {
 		shdrCurr = &shdr[i];
-		if (hal_strcmp(&snameTab[shdrCurr->sh_name], ".tdata") == 0) {
-			tlsNew.tls_base = (ptr_t)shdrCurr->sh_addr;
-			tlsNew.tdata_sz += shdrCurr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tls_base) < 0) {
-				return -ENOEXEC;
-			}
-		}
-		else if (hal_strcmp(&snameTab[shdrCurr->sh_name], ".tbss") == 0) {
-			tbssAddr = (ptr_t)shdrCurr->sh_addr;
-			tlsNew.tbss_sz += shdrCurr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tbssAddr) < 0) {
-				return -ENOEXEC;
-			}
-		}
-		else if (hal_strcmp(&snameTab[shdrCurr->sh_name], "armtls") == 0) {
+		if (hal_strcmp(&snameTab[shdrCurr->sh_name], "armtls") == 0) {
 			tlsNew.arm_m_tls = (ptr_t)shdrCurr->sh_addr;
 			if (process_relocate(reloc, relocsz, (char **)&tlsNew.arm_m_tls) < 0) {
 				return -ENOEXEC;
@@ -985,7 +967,18 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			/* No action required */
 		}
 	}
-	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+
+	for (i = 0U; i < ehdr->e_phnum; i++) {
+		phdrCurr = &phdr[i];
+		if ((phdrCurr->p_type == PT_TLS) && (phdrCurr->p_memsz != 0U)) {
+			relptr = (void *)phdrCurr->p_vaddr;
+			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+				return -ENOEXEC;
+			}
+			process_tlsFromPhdr(&tlsNew, (ptr_t)relptr, phdrCurr->p_filesz, phdrCurr->p_memsz, phdrCurr->p_align);
+		}
+	}
+	process->tls = tlsNew;
 
 	/* Allocate and map user stack */
 	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
@@ -1862,21 +1855,22 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 {
 	int err;
-	dest->tdata_sz = source->tdata_sz;
-	dest->tbss_sz = source->tbss_sz;
+	char *alloc;
+	*dest = *source;
 	dest->tls_sz = round_page(source->tls_sz);
-	dest->arm_m_tls = source->arm_m_tls;
 
-	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	alloc = vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	if (dest->tls_base != 0U) {
+	if (alloc != NULL) {
+		dest->tls_base = (ptr_t)alloc + process_tlsOffset(dest);
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
-		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
+		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tls_memsz - dest->tdata_sz);
 		/* At the end of TLS there must be a pointer to itself */
-		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+		*(ptr_t *)(dest->tls_base + dest->tls_memsz) = dest->tls_base + dest->tls_memsz;
 		err = EOK;
 	}
 	else {
+		dest->tls_base = 0;
 		err = -ENOMEM;
 	}
 	return err;
@@ -1885,7 +1879,7 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
 {
-	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
+	return vm_munmap(map, (void *)(tls->tls_base - process_tlsOffset(tls)), tls->tls_sz);
 }
 
 
