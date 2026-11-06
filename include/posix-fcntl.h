@@ -31,6 +31,7 @@
 #define O_CLOEXEC  0x04000U
 #define O_RSYNC    0x08000U
 #define O_DSYNC    0x10000U
+#define O_NOFOLLOW 0x20000U
 
 #define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
 
