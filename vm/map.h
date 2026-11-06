@@ -64,6 +64,7 @@ typedef struct _map_entry_t {
 	size_t rmaxgap;
 
 	vm_flags_t flags;
+	vm_state_t state;
 	vm_prot_t prot;
 	vm_prot_t protOrig;
 	struct _vm_object_t *object;
@@ -71,16 +72,23 @@ typedef struct _map_entry_t {
 } map_entry_t;
 
 
-#define VM_OFFS_MAX ((u64)-1)
+#define VM_OFFS_MAX ((u64) - 1)
+
+
+#define ENTRY_NEEDSCOPY (0x1U << 0)
+#define ENTRY_BORROWED  (0x1U << 1)
 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot);
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags);
+int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcaddr, size_t size, vm_prot_t prot);
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, u64 offs, vm_flags_t flags);
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags, vm_state_t state);
+
+
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, u64 offs, vm_flags_t flags, vm_state_t state);
 
 
 int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot);
