@@ -79,29 +79,30 @@ void _proc_clearReplyChain(thread_t *from)
 }
 
 
-static thread_t *_ridToReply(msg_rid_t rid, thread_t *current)
+static msgCall_t *_ridRec(msg_rid_t rid)
 {
-	void *reply = (void *)((ptr_t)rid ^ msg_common.ridCookie);
-	thread_t *t;
+	return (msgCall_t *)((ptr_t)rid ^ msg_common.ridCookie);
+}
 
-	if (reply == NULL) {
-		return NULL;
+
+static thread_t *_ridLookup(msg_rid_t rid, thread_t *current, int *err)
+{
+	msgCall_t *rec = _ridRec(rid);
+	thread_t *t = current->reply;
+
+	if ((rec != NULL) && (t != NULL)) {
+		do {
+			if (t->ipc.rec == rec) {
+				*err = EOK;
+				return t;
+			}
+			t = t->replyNext;
+		} while (t != current->reply);
 	}
 
-#ifndef NOMMU
-	if (pmap_belongs(&msg_common.kmap->pmap, reply) == 0) {
-		return NULL;
-	}
-#else
-	if (((ptr_t)reply < (ptr_t)msg_common.kmap->start) ||
-			((ptr_t)reply > (ptr_t)msg_common.kmap->stop - sizeof(thread_t))) {
-		return NULL;
-	}
-#endif
+	*err = ((rec != NULL) && (_xfer_orphanFind(current, rec) != NULL)) ? -EPIPE : -EINVAL;
 
-	t = (thread_t *)reply;
-
-	return (_thread_called(t) == current) ? t : NULL;
+	return NULL;
 }
 
 
@@ -128,11 +129,123 @@ static void _msgDeliver(thread_t *caller, thread_t *recv, const msgHdr_t *hdr, v
 	out->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
 	out->priority = caller->priority;
 
-	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller ^ msg_common.ridCookie);
+	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller->ipc.rec ^ msg_common.ridCookie);
 }
 
 
-static int proc_send_ex(u32 port, msg_t *msg, int returnable)
+static unsigned int _msgCancellable(const thread_t *caller)
+{
+	if (caller->ipc.call.direct != 0U) {
+		return 0U;
+	}
+
+	if ((caller->callReturnable != 0U) || (caller->process != NULL)) {
+		return 1U;
+	}
+
+	/* else: kernel thread has nowhere to return after non-returnable proc_send_ex() */
+	return 0U;
+}
+
+
+static void _msgCancelled(void *arg)
+{
+	thread_t *caller = proc_current();
+	cpu_context_t *ctx;
+	spinlock_ctx_t sc;
+
+	(void)arg;
+
+	xfer_abort(caller);
+
+	if (caller->exit != 0U) {
+		proc_threadEnd();
+	}
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	ctx = _threads_getUserContext(caller);
+	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
+	caller->fastpathExitCtx = ctx;
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	trace_eventSyscallExit(syscall_msgSend, proc_getTid(caller));
+
+	/* takes the fastpathExitCtx, delivering the signal */
+	threads_setupUserReturn(NULL, NULL);
+
+	for (;;) {
+	}
+}
+
+
+static void _msgCancel(thread_t *caller)
+{
+	size_t kstacksz;
+
+	_xfer_orphan(caller, _thread_called(caller), caller->ipc.rec);
+	caller->ipc.rec = NULL;
+
+	_sc_reclaim(caller);
+	_proc_clearReplyChain(caller);
+
+	caller->interruptible = 0U;
+	caller->state = READY;
+
+	if (caller->callReturnable != 0U) {
+		caller->callReturnable = 0U;
+		hal_cpuSetReturnValue(caller->context, (void *)-EINTR);
+	}
+	else {
+		/* below the user context, which _msgCancelled() returns through */
+		kstacksz = (caller->kstacksz - sizeof(cpu_context_t)) & ~(size_t)15U;
+		(void)hal_cpuCreateContext(&caller->context, _msgCancelled, caller->kstack, kstacksz, NULL, NULL, &caller->tls);
+	}
+
+	if (caller->onReady == 0U) {
+		_threads_readyAdd(caller);
+	}
+}
+
+
+void _proc_msgInterrupt(thread_t *caller)
+{
+	if ((caller->ipc.call.answering != 0U) || (caller->ipc.call.lent != 0U)) {
+		/* receiver finishes the IPC soon */
+		caller->ipc.call.intr = 1U;
+		return;
+	}
+
+	_msgCancel(caller);
+}
+
+
+void _proc_msgStackBack(thread_t *recv)
+{
+	thread_t *caller = recv->ipc.onStackOf;
+
+	recv->ipc.onStackOf = NULL;
+	caller->ipc.call.lent = 0U;
+
+	if ((caller->ipc.call.intr != 0U) && (caller->state == BLOCKED_ON_REPLY) && (caller->interruptible != 0U)) {
+		caller->ipc.call.intr = 0U;
+		_proc_msgInterrupt(caller);
+	}
+}
+
+
+void proc_msgStackBack(thread_t *recv)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	if (recv->ipc.onStackOf != NULL) {
+		_proc_msgStackBack(recv);
+	}
+	hal_spinlockClear(&threads_spinlock, &sc);
+}
+
+
+static int proc_send_ex(u32 port, msg_t *msg, int returnable, int cancellable)
 {
 	thread_t *caller = proc_current();
 	void *idata, *odata;
@@ -142,6 +255,14 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	msgHdr_t hdr;
 	port_t *p;
 	int err;
+
+	if (caller->ipc.rec == NULL) {
+		caller->ipc.rec = vm_kmalloc(sizeof(msgCall_t));
+		if (caller->ipc.rec == NULL) {
+			return -ENOMEM;
+		}
+		hal_memset(caller->ipc.rec, 0, sizeof(msgCall_t));
+	}
 
 	for (;;) {
 		err = port_claim(port, caller, ((returnable != 0) || (caller->process == NULL)) ? 1 : 0, &p, &recv);
@@ -178,9 +299,16 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	_sc_donate(caller, recv, caller->scActive);
 
 	caller->ipc.msgPtr = msg;
+	caller->ipc.call.answering = 0U;
+	caller->ipc.call.intr = 0U;
 	caller->state = BLOCKED_ON_REPLY;
 	caller->callReturnable = (returnable != 0) ? 1U : 0U;
+	caller->interruptible = (cancellable != 0) ? _msgCancellable(caller) : 0U;
 	recv->state = READY;
+
+	LIB_ASSERT(recv->ipc.onStackOf == NULL, "recv still on the stack of a previous caller");
+	caller->ipc.call.lent = 1U;
+	recv->ipc.onStackOf = caller;
 
 	ctx = _threads_switchTo(recv);
 
@@ -226,13 +354,19 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 int proc_send(u32 port, msg_t *msg)
 {
-	return proc_send_ex(port, msg, 0);
+	return proc_send_ex(port, msg, 0, 1);
 }
 
 
 int proc_send_returnable(u32 port, msg_t *msg)
 {
-	return proc_send_ex(port, msg, 1);
+	return proc_send_ex(port, msg, 1, 1);
+}
+
+
+int proc_sendUninterruptible(u32 port, msg_t *msg)
+{
+	return proc_send_ex(port, msg, 1, 0);
 }
 
 
@@ -267,6 +401,17 @@ static void _msgHandOver(thread_t *forward, const msg_t *msg, msg_rid_t rid)
 }
 
 
+static void _msgAnswered(thread_t *caller)
+{
+	caller->ipc.call.answering = 0U;
+
+	if ((caller->ipc.call.intr != 0U) && (caller->interruptible != 0U)) {
+		caller->ipc.call.intr = 0U;
+		_proc_msgInterrupt(caller);
+	}
+}
+
+
 int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	thread_t *recv = proc_current();
@@ -283,7 +428,15 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 
 	hal_spinlockSet(&threads_spinlock, &tsc);
 
-	caller = (forward->process == recv->process) ? _ridToReply(rid, recv) : NULL;
+	caller = _ridLookup(rid, recv, &err);
+	if ((caller != NULL) && (forward->process != recv->process)) {
+		caller = NULL;
+		err = -EINVAL;
+	}
+	if (caller != NULL) {
+		caller->ipc.call.answering = 1U;
+	}
+
 	if (caller == NULL) {
 		_portReturnReceiver(p, forward);
 	}
@@ -291,14 +444,18 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockClear(&threads_spinlock, &tsc);
 
 	if (caller == NULL) {
+		if (err == -EPIPE) {
+			(void)xfer_orphanDrop(recv, _ridRec(rid));
+		}
 		port_put(p, 0);
-		return -EINVAL;
+		return err;
 	}
 
 	err = xfer_forward(caller, recv, forward, msg);
 	if (err < 0) {
 		hal_spinlockSet(&threads_spinlock, &tsc);
 		_portReturnReceiver(p, forward);
+		_msgAnswered(caller);
 		hal_spinlockClear(&threads_spinlock, &tsc);
 		port_put(p, 0);
 		return err;
@@ -318,6 +475,8 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 
 	caller->state = BLOCKED_ON_REPLY;
 	forward->state = READY;
+
+	_msgAnswered(caller);
 
 	/* could have changed as part of _sc_return */
 	_threads_setCurrent(recv);
@@ -489,21 +648,22 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	hal_spinlockSet(&threads_spinlock, &tsc);
 
 	recv = _proc_current();
-	caller = _ridToReply(rid, recv);
-	if (caller == NULL) {
-		err = -EINVAL;
-	}
-	else {
+	caller = _ridLookup(rid, recv, &err);
+	if (caller != NULL) {
 		/*
 		 * The SC stays with recv until the copy below is done, otherwise a
 		 * middle priority thread could preempt it while the caller waits.
 		 */
 		dying = (caller->exit != 0U) ? 1 : 0;
+		caller->ipc.call.answering = 1U;
 	}
 
 	hal_spinlockClear(&threads_spinlock, &tsc);
 	hal_spinlockClear(&p->spinlock, &sc);
 
+	if (err == -EPIPE) {
+		(void)xfer_orphanDrop(recv, _ridRec(rid));
+	}
 	if (err < 0) {
 		return err;
 	}
@@ -573,7 +733,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	hal_spinlockSet(&threads_spinlock, &sc);
 	saved = *rid;
-	respond = (_ridToReply(saved, _proc_current()) != NULL) ? 1 : 0;
+	respond = ((_ridLookup(saved, _proc_current(), &err) != NULL) || (err == -EPIPE)) ? 1 : 0;
 	hal_spinlockClear(&threads_spinlock, &sc);
 
 	if (respond != 0) {

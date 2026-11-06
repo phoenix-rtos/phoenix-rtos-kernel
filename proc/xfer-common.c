@@ -16,6 +16,11 @@
 #include "include/errno.h"
 
 
+static struct {
+	lock_t lock;
+} xfer_orphans;
+
+
 typedef struct {
 	msg_xfer_t kind;
 	size_t ofs;
@@ -98,7 +103,7 @@ static xferPlan_t _classify(const thread_t *caller, const thread_t *recv, int ty
 
 static int _setupSide(thread_t *caller, thread_t *recv, const xferPlan_t *plan, void *data, size_t size, msg_side_t side, void **rdata)
 {
-	xferBuf_t *xb = (side == msg_side_in) ? &caller->ipc.call.ibl : &caller->ipc.call.obl;
+	xferBuf_t *xb = (side == msg_side_in) ? &caller->ipc.rec->ibl : &caller->ipc.rec->obl;
 
 	*rdata = NULL;
 
@@ -112,7 +117,7 @@ static int _setupSide(thread_t *caller, thread_t *recv, const xferPlan_t *plan, 
 			return EOK;
 
 		case msg_xfer_borrow:
-			*rdata = (char *)caller->ipc.call.bw + plan->ofs;
+			*rdata = (char *)caller->ipc.rec->bw + plan->ofs;
 			return EOK;
 
 		case msg_xfer_map:
@@ -135,8 +140,8 @@ static size_t _oofs(const thread_t *caller)
 
 static void _release(thread_t *caller)
 {
-	xfer_bufRelease(&caller->ipc.call.ibl);
-	xfer_bufRelease(&caller->ipc.call.obl);
+	xfer_bufRelease(&caller->ipc.rec->ibl);
+	xfer_bufRelease(&caller->ipc.rec->obl);
 	xfer_borrowRelease(caller);
 }
 
@@ -168,6 +173,12 @@ int xfer_begin(thread_t *caller, thread_t *recv, int type, unsigned char *iraw, 
 		_release(caller);
 		return err;
 	}
+
+	caller->ipc.call.direct = (((in.kind == msg_xfer_map) && (caller->ipc.rec->ibl.w == NULL)) ||
+									  ((out.kind == msg_xfer_map) && (caller->ipc.rec->obl.w == NULL)) ||
+									  (((in.kind == msg_xfer_borrow) || (out.kind == msg_xfer_borrow)) && (caller->ipc.rec->bmap == NULL))) ?
+			1U :
+			0U;
 
 	if (in.kind == msg_xfer_raw) {
 		hal_memcpy(iraw + in.ofs, idata, isize);
@@ -258,7 +269,7 @@ size_t xfer_end(thread_t *caller, size_t osize)
 
 		case msg_xfer_map:
 			/* the receiver could have written anywhere in the mapping */
-			xfer_bufCopyBack(&caller->ipc.call.obl, caller->ipc.call.osize);
+			xfer_bufCopyBack(&caller->ipc.rec->obl, caller->ipc.call.osize);
 			break;
 
 		default:
@@ -316,9 +327,28 @@ void xfer_flush(thread_t *owner)
 }
 
 
+static void _orphanPut(msgCall_t *rec)
+{
+	if (__atomic_sub_fetch(&rec->refs, 1, __ATOMIC_ACQ_REL) == 0) {
+		vm_kfree(rec);
+	}
+}
+
+
 void xfer_abort(thread_t *caller)
 {
+	msgCall_t *rec = caller->ipc.call.orphan;
 	spinlock_ctx_t sc;
+
+	if (rec != NULL) {
+		caller->ipc.call.orphan = NULL;
+
+		(void)proc_lockSet(&xfer_orphans.lock);
+		xfer_orphanDetach(rec);
+		(void)proc_lockClear(&xfer_orphans.lock);
+
+		_orphanPut(rec);
+	}
 
 	if (__atomic_exchange_n(&caller->ipc.call.active, 0U, __ATOMIC_ACQ_REL) != 0U) {
 		_release(caller);
@@ -329,4 +359,91 @@ void xfer_abort(thread_t *caller)
 		_unhold(caller);
 	}
 	hal_spinlockClear(&threads_spinlock, &sc);
+}
+
+
+void _xfer_orphan(thread_t *caller, thread_t *recv, msgCall_t *rec)
+{
+	__atomic_store_n(&caller->ipc.call.active, 0U, __ATOMIC_RELEASE);
+
+	rec->bsize = caller->ipc.size;
+	rec->refs = 2;
+	caller->ipc.call.orphan = rec;
+
+	LIST_ADD(&recv->ipc.orphans, rec);
+}
+
+
+msgCall_t *_xfer_orphanFind(const thread_t *recv, const msgCall_t *rec)
+{
+	msgCall_t *o = recv->ipc.orphans;
+
+	if (o != NULL) {
+		do {
+			if (o == rec) {
+				return o;
+			}
+			o = o->next;
+		} while (o != recv->ipc.orphans);
+	}
+
+	return NULL;
+}
+
+
+static void _orphanRelease(msgCall_t *rec)
+{
+	(void)proc_lockSet(&xfer_orphans.lock);
+	xfer_orphanRelease(rec);
+	(void)proc_lockClear(&xfer_orphans.lock);
+	_orphanPut(rec);
+}
+
+
+int xfer_orphanDrop(thread_t *recv, msgCall_t *rec)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	rec = _xfer_orphanFind(recv, rec);
+	if (rec != NULL) {
+		LIST_REMOVE(&recv->ipc.orphans, rec);
+	}
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	if (rec == NULL) {
+		return -ENOENT;
+	}
+
+	_orphanRelease(rec);
+
+	return EOK;
+}
+
+
+void xfer_orphansRelease(thread_t *recv)
+{
+	msgCall_t *rec;
+	spinlock_ctx_t sc;
+
+	for (;;) {
+		hal_spinlockSet(&threads_spinlock, &sc);
+		rec = recv->ipc.orphans;
+		if (rec != NULL) {
+			LIST_REMOVE(&recv->ipc.orphans, rec);
+		}
+		hal_spinlockClear(&threads_spinlock, &sc);
+
+		if (rec == NULL) {
+			break;
+		}
+
+		_orphanRelease(rec);
+	}
+}
+
+
+void xfer_orphanInit(void)
+{
+	(void)proc_lockInit(&xfer_orphans.lock, &proc_lockAttrDefault, "xfer.orphans");
 }

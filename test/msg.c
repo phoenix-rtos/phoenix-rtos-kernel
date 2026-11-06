@@ -890,6 +890,230 @@ static void test_port_refsRun(void)
 }
 
 
+/*
+ * Scenario 7: cancelling a call. A caller killed while its call is served
+ * returns -EINTR at once instead of waiting for the response. The server finds
+ * out only when it responds (-EPIPE), and the rid it holds must never reach
+ * the call the caller makes next, even though the caller is the same thread.
+ * A call whose payload the server got directly can't be cancelled. A server
+ * dying with cancelled calls on it has to release them.
+ *
+ * Kernel threads share the kernel's address space, so the windows here are
+ * all direct or empty; the mapped ones are left to the userspace suite.
+ */
+
+
+#define TEST_CANCEL_RIDS 4
+
+static struct {
+	unsigned int port;
+	thread_t *server;
+	thread_t *client;
+
+	volatile unsigned int received;
+	msg_rid_t rid[TEST_CANCEL_RIDS];
+	volatile int respond;   /* index of the rid the server is to respond to, -1 for none */
+	volatile int responded; /* bumped after every response */
+	volatile int respondErr;
+
+	volatile int clientStep;
+	volatile int clientErr[2];
+	volatile int serverGone;
+} test_cancel;
+
+
+static void test_cancel_server(void *arg)
+{
+	msg_t msg;
+	msg_rid_t rid;
+	int idx;
+
+	test_cancel.server = proc_current();
+
+	for (;;) {
+		/* takes calls only when told to, answering what it is told to in between */
+		if ((test_cancel.received < TEST_CANCEL_RIDS) && (test_cancel.respond == -2)) {
+			if (proc_recv(test_cancel.port, &msg, &rid) == EOK) {
+				test_cancel.rid[test_cancel.received] = rid;
+				test_cancel.received++;
+			}
+			test_cancel.respond = -1;
+		}
+
+		idx = test_cancel.respond;
+		if (idx >= 0) {
+			hal_memset(&msg, 0, sizeof(msg));
+			msg.o.err = 7;
+			test_cancel.respondErr = proc_respond(test_cancel.port, &msg, test_cancel.rid[idx]);
+			test_cancel.respond = -1;
+			test_cancel.responded++;
+		}
+
+		if (proc_current()->exit != 0U) {
+			test_cancel.serverGone = 1;
+			proc_threadEnd();
+		}
+		proc_threadSleep(1000);
+	}
+}
+
+
+#define TEST_CANCEL_AGAIN  0 /* calls again after the cancelled call */
+#define TEST_CANCEL_DIRECT 1 /* the server gets the payload in place */
+#define TEST_CANCEL_ONCE   2
+
+
+static void test_cancel_client(void *arg)
+{
+	unsigned char big[200];
+	msg_t msg;
+	int mode = (int)(unsigned long)arg, err;
+
+	test_cancel.client = proc_current();
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = mtDevCtl;
+	if (mode == TEST_CANCEL_DIRECT) {
+		/* too big for the raw area, the kernel server gets it in place */
+		msg.i.data = big;
+		msg.i.size = sizeof(big);
+	}
+
+	test_cancel.clientErr[0] = proc_send_returnable(test_cancel.port, &msg);
+	test_cancel.clientStep = 1;
+
+	if (mode == TEST_CANCEL_AGAIN) {
+		/* a killed thread is refused a wait for a receiver, so it calls once the server waits */
+		do {
+			proc_threadSleep(1000);
+			hal_memset(&msg, 0, sizeof(msg));
+			msg.type = mtDevCtl;
+			err = proc_send_returnable(test_cancel.port, &msg);
+		} while (err == -EINTR);
+		test_cancel.clientErr[1] = err;
+		test_cancel.clientStep = 2;
+	}
+
+	proc_threadEnd();
+}
+
+
+/* Waits up to ms for *flag to reach val. */
+static int test_cancel_wait(volatile int *flag, int val, unsigned int ms)
+{
+	while ((*flag != val) && (ms-- > 0U)) {
+		proc_threadSleep(1000);
+	}
+
+	return (*flag == val) ? 0 : -1;
+}
+
+
+static void test_cancel_take(void)
+{
+	unsigned int before = test_cancel.received;
+
+	test_cancel.respond = -2;
+	while (test_cancel.received == before) {
+		proc_threadSleep(1000);
+	}
+}
+
+
+static int test_cancel_answer(int idx)
+{
+	int before = test_cancel.responded;
+
+	test_cancel.respond = idx;
+	while (test_cancel.responded == before) {
+		proc_threadSleep(1000);
+	}
+
+	return test_cancel.respondErr;
+}
+
+
+static void test_cancel_checker(void *arg)
+{
+	int err;
+
+	(void)arg;
+
+	/* 1. the call is served when the caller is killed: it returns -EINTR without a response */
+	proc_threadCreate(NULL, test_cancel_client, NULL, 5, 4096, NULL, 0, 0, (void *)TEST_CANCEL_AGAIN);
+	test_cancel_take();
+	proc_threadSleep(20000);
+	LIB_ASSERT_ALWAYS(test_cancel.clientStep == 0, "CANCEL FAILED: the call returned before the response");
+
+	proc_threadDestroy(test_cancel.client);
+	LIB_ASSERT_ALWAYS(test_cancel_wait(&test_cancel.clientStep, 1, 1000) == 0, "CANCEL FAILED: a killed caller still waits for the response");
+	LIB_ASSERT_ALWAYS(test_cancel.clientErr[0] == -EINTR, "CANCEL FAILED: the cancelled call returned %d", test_cancel.clientErr[0]);
+
+	/* 2. the caller's next call gets a rid of its own, the old one is an orphan */
+	test_cancel_take();
+	LIB_ASSERT_ALWAYS(test_cancel.rid[1] != test_cancel.rid[0], "CANCEL FAILED: the next call reuses the cancelled call's rid");
+
+	err = test_cancel_answer(0);
+	LIB_ASSERT_ALWAYS(err == -EPIPE, "CANCEL FAILED: responding to a cancelled call gave %d", err);
+	proc_threadSleep(20000);
+	LIB_ASSERT_ALWAYS(test_cancel.clientStep == 1, "CANCEL FAILED: the cancelled call's response reached the next call");
+
+	err = test_cancel_answer(0);
+	LIB_ASSERT_ALWAYS(err == -EINVAL, "CANCEL FAILED: a cancelled call answered twice gave %d", err);
+
+	/* the caller is dying, so the response to its next call is dropped too */
+	err = test_cancel_answer(1);
+	LIB_ASSERT_ALWAYS(err == -EPIPE, "CANCEL FAILED: responding to the next call gave %d", err);
+	LIB_ASSERT_ALWAYS(test_cancel_wait(&test_cancel.clientStep, 2, 1000) == 0, "CANCEL FAILED: the next call never returned");
+	LIB_ASSERT_ALWAYS(test_cancel.clientErr[1] == -EPIPE, "CANCEL FAILED: the next call returned %d", test_cancel.clientErr[1]);
+	LIB_ASSERT_ALWAYS(test_cancel.server->ipc.orphans == NULL, "CANCEL FAILED: the server still holds an orphan");
+	lib_printf("test: [port.cancel] killed caller returns -EINTR, its rid stays its own\n");
+
+	/* 3. a call the server got the caller's memory for can't be cancelled */
+	test_cancel.clientStep = 0;
+	proc_threadCreate(NULL, test_cancel_client, NULL, 5, 4096, NULL, 0, 0, (void *)TEST_CANCEL_DIRECT);
+	test_cancel_take();
+	proc_threadDestroy(test_cancel.client);
+	proc_threadSleep(20000);
+	LIB_ASSERT_ALWAYS(test_cancel.clientStep == 0, "CANCEL FAILED: a call served on the caller's memory was cancelled");
+
+	err = test_cancel_answer(2);
+	LIB_ASSERT_ALWAYS(err == -EPIPE, "CANCEL FAILED: responding to a dying caller gave %d", err);
+	LIB_ASSERT_ALWAYS(test_cancel_wait(&test_cancel.clientStep, 1, 1000) == 0, "CANCEL FAILED: the dying caller never returned");
+	LIB_ASSERT_ALWAYS(test_cancel.clientErr[0] == -EPIPE, "CANCEL FAILED: the dying caller's call returned %d", test_cancel.clientErr[0]);
+	lib_printf("test: [port.cancel] a call on the caller's own memory waits for the response\n");
+
+	/* 4. the server dies holding an orphan, released when it is reaped */
+	test_cancel.clientStep = 0;
+	proc_threadCreate(NULL, test_cancel_client, NULL, 5, 4096, NULL, 0, 0, (void *)TEST_CANCEL_ONCE);
+	test_cancel_take();
+	proc_threadDestroy(test_cancel.client);
+	LIB_ASSERT_ALWAYS(test_cancel_wait(&test_cancel.clientStep, 1, 1000) == 0, "CANCEL FAILED: a killed caller still waits for the response");
+	LIB_ASSERT_ALWAYS(test_cancel.clientErr[0] == -EINTR, "CANCEL FAILED: the cancelled call returned %d", test_cancel.clientErr[0]);
+	LIB_ASSERT_ALWAYS(test_cancel.server->ipc.orphans != NULL, "CANCEL FAILED: the cancelled call left no orphan");
+
+	proc_threadDestroy(test_cancel.server);
+	LIB_ASSERT_ALWAYS(test_cancel_wait(&test_cancel.serverGone, 1, 1000) == 0, "CANCEL FAILED: the server didn't die");
+	lib_printf("test: [port.cancel] PASSED\n");
+
+	proc_threadEnd();
+}
+
+
+static void test_port_cancelRun(void)
+{
+	if (proc_portCreate(&test_cancel.port) != EOK) {
+		lib_printf("test: [port.cancel] could not create a port\n");
+		return;
+	}
+
+	test_cancel.respond = -1;
+
+	proc_threadCreate(NULL, test_cancel_server, NULL, 6, 4096, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_cancel_checker, NULL, 4, 4096, NULL, 0, 0, NULL);
+}
+
+
 static void test_msg_portInitthr(void *arg)
 {
 	/* Enable locking and multithreading related mechanisms */
@@ -912,6 +1136,9 @@ static void test_msg_portInitthr(void *arg)
 	test_port_closeRun();
 	proc_threadSleep(1500000);
 
+	test_port_cancelRun();
+	proc_threadSleep(1500000);
+
 	/* the reaper below has to be running for this one, see the comment there */
 	test_port_refsRun();
 
@@ -932,7 +1159,7 @@ void test_msg_port(void)
 
 
 /*
- * Scenario 7: kill storm. Clients call servers through one port while a
+ * Scenario 8: kill storm. Clients call servers through one port while a
  * killer destroys random ones of them all the time, so every IPC teardown
  * path gets hit with the other side in any state. Nothing may assert, the
  * survivors have to keep making progress, and in the end every thread has
@@ -1138,7 +1365,7 @@ static void test_storm_killer(void *arg)
 
 
 /*
- * Scenario 8: the reaper calls a dead process. Closing the files of a dead
+ * Scenario 9: the reaper calls a dead process. Closing the files of a dead
  * process makes the reaper call servers, and one of them can die while the
  * reaper waits for its receiver. Its ports are only closed once the reaper
  * reaps it, so the reaper must notice by itself that nobody will answer.

@@ -35,6 +35,9 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid);
 int proc_send_returnable(u32 port, msg_t *msg);
 
 
+int proc_sendUninterruptible(u32 port, msg_t *msg);
+
+
 msg_t *proc_kmsg(void);
 
 
@@ -57,6 +60,15 @@ void _proc_clearReplyChain(thread_t *from);
 
 
 void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval);
+
+
+void _proc_msgInterrupt(thread_t *caller);
+
+
+void _proc_msgStackBack(thread_t *recv);
+
+
+void proc_msgStackBack(thread_t *recv);
 
 
 #endif

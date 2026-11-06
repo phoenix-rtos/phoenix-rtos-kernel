@@ -53,8 +53,19 @@ void _xfer_copyOut(thread_t *caller);
 void xfer_flush(thread_t *owner);
 
 
-/* Releases the call without writing anything back. */
 void xfer_abort(thread_t *caller);
+
+
+void _xfer_orphan(thread_t *caller, thread_t *recv, msgCall_t *rec);
+
+
+msgCall_t *_xfer_orphanFind(const thread_t *recv, const msgCall_t *rec);
+
+
+int xfer_orphanDrop(thread_t *recv, msgCall_t *rec);
+
+
+void xfer_orphansRelease(thread_t *recv);
 
 
 void *xfer_setupIpcBuf(thread_t *t, size_t sz);
@@ -85,6 +96,15 @@ void xfer_borrowCopyBack(thread_t *caller, size_t ofs, size_t size);
 
 
 void xfer_borrowRelease(thread_t *caller);
+
+
+void xfer_orphanDetach(msgCall_t *rec);
+
+
+void xfer_orphanRelease(msgCall_t *rec);
+
+
+void xfer_orphanInit(void);
 
 
 /* Requires threads_spinlock, may be called in any address space. */

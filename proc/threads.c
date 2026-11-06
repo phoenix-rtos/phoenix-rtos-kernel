@@ -442,6 +442,8 @@ void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 
 	_sc_return(recv, caller);
 	caller->state = READY;
+	caller->interruptible = 0U;
+	caller->ipc.call.intr = 0U;
 
 	if (caller->onReady == 0U) {
 		_threads_readyAdd(caller);
@@ -493,6 +495,10 @@ static void thread_destroy(thread_t *thread)
 	hal_spinlockSet(&threads_spinlock, &sc);
 	current = _proc_current();
 
+	if (thread->ipc.onStackOf != NULL) {
+		_proc_msgStackBack(thread);
+	}
+
 	if (_thread_called(thread) != NULL) {
 		_sc_reclaim(thread);
 		_proc_clearReplyChain(thread);
@@ -541,6 +547,8 @@ static void thread_destroy(thread_t *thread)
 		LIB_ASSERT(reply != thread, "thread replies to itself?");
 		LIB_ASSERT(reply->scActive == NULL, "reply has an active sc?");
 
+		reply->ipc.call.answering = 1U;
+
 		hal_spinlockClear(&threads_spinlock, &sc);
 
 		/*
@@ -577,7 +585,14 @@ static void thread_destroy(thread_t *thread)
 		vm_kfree(thread->ipc.kmsg);
 	}
 
+	if (thread->ipc.orphans != NULL) {
+		xfer_orphansRelease(thread);
+	}
+
 	xfer_releaseIpcBuf(thread);
+	if (thread->ipc.rec != NULL) {
+		vm_kfree(thread->ipc.rec);
+	}
 
 	if (process != NULL) {
 		hal_spinlockSet(&threads_spinlock, &sc);
@@ -846,6 +861,12 @@ void _threads_setActiveSc(thread_t *t, sched_context_t *sc)
 }
 
 
+static int _threads_onStack(const thread_t *t, const void *p)
+{
+	return (((const char *)p >= (const char *)t->kstack) && ((const char *)p < (const char *)t->kstack + t->kstacksz)) ? 1 : 0;
+}
+
+
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
@@ -883,7 +904,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			if (current->saveCtxIn != NULL) {
 				current->saveCtxIn->context = context;
 				current->saveCtxIn = NULL;
+
+				if (current->ipc.onStackOf != NULL) {
+					_proc_msgStackBack(current);
+				}
 			}
+		}
+
+		if ((current->ipc.onStackOf != NULL) && (_threads_onStack(current->ipc.onStackOf, context) == 0)) {
+			_proc_msgStackBack(current);
 		}
 
 		if (current->state == READY) {
@@ -1244,6 +1273,11 @@ void _wakeReceiver(thread_t *t)
 static void _thread_interrupt(thread_t *t)
 {
 	LIB_ASSERT(t->state != READY, "interrupting a ready thread?");
+
+	if (t->state == BLOCKED_ON_REPLY) {
+		_proc_msgInterrupt(t);
+		return;
+	}
 
 	if (t->state == BLOCKED_ON_RECV) {
 		_wakeReceiver(t);

@@ -86,6 +86,7 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 
 	xb->size = CEIL(end) - FLOOR(start);
 	xb->map = dstmap;
+	xb->attr = attr;
 	xb->w = vm_mapFind(dstmap, NULL, xb->size, MAP_NOINHERIT, prot);
 	if (xb->w == NULL) {
 		return -ENOMEM;
@@ -204,8 +205,10 @@ void xfer_releaseIpcBuf(thread_t *t)
 
 	xfer_flush(t);
 
-	_winRelease(&t->ipc.call.ibl);
-	_winRelease(&t->ipc.call.obl);
+	if (t->ipc.rec != NULL) {
+		_winRelease(&t->ipc.rec->ibl);
+		_winRelease(&t->ipc.rec->obl);
+	}
 
 	/* a kernel thread has just the kernel mapping */
 	if ((t->ipc.w != NULL) && (t->process != NULL)) {
@@ -307,8 +310,8 @@ int xfer_borrowMap(thread_t *caller, thread_t *recv)
 	char *w;
 
 	if (dstmap == _getMap(caller->process)) {
-		caller->ipc.call.bw = caller->ipc.w;
-		caller->ipc.call.bmap = NULL;
+		caller->ipc.rec->bw = caller->ipc.w;
+		caller->ipc.rec->bmap = NULL;
 		return EOK;
 	}
 
@@ -330,8 +333,8 @@ int xfer_borrowMap(thread_t *caller, thread_t *recv)
 		}
 	}
 
-	caller->ipc.call.bw = w;
-	caller->ipc.call.bmap = dstmap;
+	caller->ipc.rec->bw = w;
+	caller->ipc.rec->bmap = dstmap;
 
 	return EOK;
 }
@@ -348,12 +351,12 @@ void xfer_borrowCopyBack(thread_t *caller, size_t ofs, size_t size)
 
 void xfer_borrowRelease(thread_t *caller)
 {
-	if (caller->ipc.call.bmap != NULL) {
-		(void)vm_munmap(caller->ipc.call.bmap, caller->ipc.call.bw, caller->ipc.size);
+	if (caller->ipc.rec->bmap != NULL) {
+		(void)vm_munmap(caller->ipc.rec->bmap, caller->ipc.rec->bw, caller->ipc.size);
 	}
 
-	caller->ipc.call.bw = NULL;
-	caller->ipc.call.bmap = NULL;
+	caller->ipc.rec->bw = NULL;
+	caller->ipc.rec->bmap = NULL;
 }
 
 
@@ -381,7 +384,122 @@ void _xfer_copyToCaller(thread_t *caller, void *dst, const void *src, size_t siz
 }
 
 
+static void _aliased(const xferBuf_t *xb, size_t *first, size_t *last)
+{
+	*first = (xb->bp != NULL) ? SIZE_PAGE : 0U;
+	*last = (xb->ep != NULL) ? (xb->size - SIZE_PAGE) : xb->size;
+}
+
+
+static page_t *_sinkAlloc(void)
+{
+	vm_attr_t attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT;
+	page_t *p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	void *v;
+
+	if (p == NULL) {
+		return NULL;
+	}
+
+	v = vm_mapFind(xfer_common.kmap, NULL, SIZE_PAGE, MAP_NOINHERIT, PROT_READ | PROT_WRITE);
+	if ((v == NULL) || (page_map(&xfer_common.kmap->pmap, v, p->addr, attr) < 0)) {
+		if (v != NULL) {
+			(void)vm_munmap(xfer_common.kmap, v, SIZE_PAGE);
+		}
+		vm_pageFree(p);
+		return NULL;
+	}
+
+	hal_memset(v, 0, SIZE_PAGE);
+	(void)vm_munmap(xfer_common.kmap, v, SIZE_PAGE);
+
+	return p;
+}
+
+
+static int _sink(page_t *sink, vm_map_t *map, void *w, size_t first, size_t last, vm_attr_t attr)
+{
+	size_t ofs;
+
+	for (ofs = first; ofs < last; ofs += SIZE_PAGE) {
+		if (page_map(&map->pmap, (char *)w + ofs, sink->addr, attr) < 0) {
+			return -ENOMEM;
+		}
+	}
+
+	return EOK;
+}
+
+
+static void _orphanUnmap(msgCall_t *rec)
+{
+	xfer_bufRelease(&rec->ibl);
+	xfer_bufRelease(&rec->obl);
+
+	if (rec->bmap != NULL) {
+		(void)vm_munmap(rec->bmap, rec->bw, rec->bsize);
+		rec->bmap = NULL;
+	}
+}
+
+
+void xfer_orphanDetach(msgCall_t *rec)
+{
+	vm_attr_t battr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(MAP_NOINHERIT);
+	size_t ifirst, ilast, ofirst, olast;
+	int err = EOK;
+
+	if (rec->obl.win != NULL) {
+		(void)pmap_remove(&xfer_common.kmap->pmap, rec->obl.win, (char *)rec->obl.win + WIN_SIZE);
+	}
+
+	_aliased(&rec->ibl, &ifirst, &ilast);
+	_aliased(&rec->obl, &ofirst, &olast);
+
+	if ((ifirst >= ilast) && (ofirst >= olast) && (rec->bmap == NULL)) {
+		return;
+	}
+
+	rec->sink = _sinkAlloc();
+	if (rec->sink == NULL) {
+		err = -ENOMEM;
+	}
+
+	if ((err == EOK) && (rec->ibl.w != NULL)) {
+		err = _sink(rec->sink, rec->ibl.map, rec->ibl.w, ifirst, ilast, rec->ibl.attr);
+	}
+	if ((err == EOK) && (rec->obl.w != NULL)) {
+		err = _sink(rec->sink, rec->obl.map, rec->obl.w, ofirst, olast, rec->obl.attr);
+	}
+	if ((err == EOK) && (rec->bmap != NULL)) {
+		/* as xfer_borrowMap() maps it */
+		if (rec->bmap != xfer_common.kmap) {
+			battr |= PGHD_USER;
+		}
+		err = _sink(rec->sink, rec->bmap, rec->bw, 0, rec->bsize, battr);
+	}
+
+	if (err < 0) {
+		_orphanUnmap(rec);
+	}
+}
+
+
+void xfer_orphanRelease(msgCall_t *rec)
+{
+	_orphanUnmap(rec);
+	_winRelease(&rec->ibl);
+	_winRelease(&rec->obl);
+
+	if (rec->sink != NULL) {
+		vm_pageFree(rec->sink);
+		rec->sink = NULL;
+	}
+}
+
+
 void xfer_init(vm_map_t *kmap)
 {
 	xfer_common.kmap = kmap;
+	xfer_orphanInit();
 }

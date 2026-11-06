@@ -1693,6 +1693,7 @@ static int process_execve(thread_t *current)
 		/* Reinitialize process */
 
 		xfer_abort(current);
+		xfer_orphansRelease(current);
 		xfer_releaseIpcBuf(current);
 
 		map = current->process->mapp;

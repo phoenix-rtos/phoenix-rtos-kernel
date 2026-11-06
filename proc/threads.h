@@ -69,7 +69,26 @@ typedef struct _xferBuf_t {
 	void *w;
 	size_t size;
 	vm_map_t *map;
+#ifndef NOMMU
+	vm_attr_t attr;
+#endif
 } xferBuf_t;
+
+
+typedef struct _msgCall_t {
+	struct _msgCall_t *next;
+	struct _msgCall_t *prev;
+	int refs;
+
+	xferBuf_t ibl;
+	xferBuf_t obl;
+	void *bw;
+	vm_map_t *bmap;
+	size_t bsize;
+#ifndef NOMMU
+	page_t *sink;
+#endif
+} msgCall_t;
 
 
 typedef struct _thread_t {
@@ -149,8 +168,6 @@ typedef struct _thread_t {
 
 	struct {
 		struct {
-			xferBuf_t ibl;
-			xferBuf_t obl;
 			u8 active;
 			u8 ikind;
 			u8 okind;
@@ -161,9 +178,16 @@ typedef struct _thread_t {
 			size_t osize;
 			void *odata;
 			struct _thread_t *owner;
-			void *bw;
-			vm_map_t *bmap;
+			u8 direct;
+			u8 answering;
+			u8 lent;
+			u8 intr;
+			msgCall_t *orphan;
 		} call;
+
+		msgCall_t *rec;
+		msgCall_t *orphans;
+		struct _thread_t *onStackOf;
 
 		/* IPC buffer */
 		void *kw;

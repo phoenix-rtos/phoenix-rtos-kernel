@@ -385,7 +385,8 @@ int proc_close(oid_t oid, unsigned int mode)
 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->i.openclose.flags = mode;
 
-	err = proc_send_returnable(oid.port, msg);
+	/* posix_fileDeref() retries on -EINTR, a cancelled close would reach the server twice */
+	err = proc_sendUninterruptible(oid.port, msg);
 
 	if (err == EOK) {
 		err = msg->o.err;

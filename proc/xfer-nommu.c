@@ -97,8 +97,8 @@ int xfer_borrowMap(thread_t *caller, thread_t *recv)
 	}
 
 	hal_memcpy(w, caller->ipc.w, caller->ipc.size);
-	caller->ipc.call.bw = w;
-	caller->ipc.call.bmap = map;
+	caller->ipc.rec->bw = w;
+	caller->ipc.rec->bmap = map;
 
 	return EOK;
 }
@@ -106,20 +106,20 @@ int xfer_borrowMap(thread_t *caller, thread_t *recv)
 
 void xfer_borrowCopyBack(thread_t *caller, size_t ofs, size_t size)
 {
-	if ((caller->ipc.call.bw != NULL) && (size > 0U)) {
-		hal_memcpy((char *)caller->ipc.w + ofs, (char *)caller->ipc.call.bw + ofs, size);
+	if ((caller->ipc.rec->bw != NULL) && (size > 0U)) {
+		hal_memcpy((char *)caller->ipc.w + ofs, (char *)caller->ipc.rec->bw + ofs, size);
 	}
 }
 
 
 void xfer_borrowRelease(thread_t *caller)
 {
-	if (caller->ipc.call.bmap != NULL) {
-		(void)vm_munmap(caller->ipc.call.bmap, caller->ipc.call.bw, caller->ipc.size);
+	if (caller->ipc.rec->bmap != NULL) {
+		(void)vm_munmap(caller->ipc.rec->bmap, caller->ipc.rec->bw, caller->ipc.size);
 	}
 
-	caller->ipc.call.bw = NULL;
-	caller->ipc.call.bmap = NULL;
+	caller->ipc.rec->bw = NULL;
+	caller->ipc.rec->bmap = NULL;
 }
 
 
@@ -189,7 +189,26 @@ void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 }
 
 
+void xfer_orphanDetach(msgCall_t *rec)
+{
+	(void)rec;
+}
+
+
+void xfer_orphanRelease(msgCall_t *rec)
+{
+	xfer_bufRelease(&rec->ibl);
+	xfer_bufRelease(&rec->obl);
+
+	if (rec->bmap != NULL) {
+		(void)vm_munmap(rec->bmap, rec->bw, rec->bsize);
+		rec->bmap = NULL;
+	}
+}
+
+
 void xfer_init(vm_map_t *kmap)
 {
 	xfer_common.kmap = kmap;
+	xfer_orphanInit();
 }

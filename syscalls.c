@@ -2223,6 +2223,10 @@ void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 
 	thread = proc_current();
 
+	if (thread->ipc.onStackOf != NULL) {
+		proc_msgStackBack(thread);
+	}
+
 	trace_eventSyscallEnter(n, proc_getTid(thread));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
