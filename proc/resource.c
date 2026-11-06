@@ -74,7 +74,7 @@ static resource_t *resource_remove(process_t *process, int id)
 }
 
 
-static void proc_resourcePut(resource_t *r)
+void proc_resourcePut(resource_t *r)
 {
 	switch (r->type) {
 		case rtLock:
