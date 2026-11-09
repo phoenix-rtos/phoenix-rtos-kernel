@@ -119,6 +119,20 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 }
 
 
+int vm_objectExists(oid_t *oid)
+{
+	vm_object_t t, *o;
+	t.oid.id = oid->id;
+	t.oid.port = oid->port;
+
+	(void)proc_lockSet(&object_common.lock);
+	o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
+	(void)proc_lockClear(&object_common.lock);
+
+	return o != NULL;
+}
+
+
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if ((o != NULL) && (o != VM_OBJ_PHYSMEM)) {
