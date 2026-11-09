@@ -40,6 +40,9 @@ vm_object_t *vm_objectRef(vm_object_t *o);
 int vm_objectGet(vm_object_t **o, oid_t oid);
 
 
+int vm_objectExists(oid_t *oid);
+
+
 int vm_objectPut(vm_object_t *o);
 
 

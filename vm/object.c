@@ -121,6 +121,20 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 }
 
 
+int vm_objectExists(oid_t *oid)
+{
+	vm_object_t t, *o;
+	t.oid.id = oid->id;
+	t.oid.port = oid->port;
+
+	(void)proc_lockSet(&object_common.lock);
+	o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
+	(void)proc_lockClear(&object_common.lock);
+
+	return o != NULL;
+}
+
+
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if ((o != NULL) && (o != VM_OBJ_PHYSMEM)) {
@@ -255,6 +269,7 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 			vm_pageFree(*page);
 		}
 
+		lib_printf("%s: failed to verify lock\n", __PRETTY_FUNCTION__);
 		return err;
 	}
 
