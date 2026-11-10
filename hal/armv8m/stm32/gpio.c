@@ -67,6 +67,25 @@ static volatile u32 *const stm32_gpioBase[MAX_GPIO - pctl_gpioa + 1] = {
 
 #define EXTI_BASE  ((void *)0x50032000U)
 #define EXTI_LINES 23U
+#elif defined(__CPU_STM32H5)
+#include "hal/armv8m/stm32/h5/stm32h5_regs.h"
+
+#define MAX_GPIO pctl_gpioi
+
+static volatile u32 *const stm32_gpioBase[MAX_GPIO - pctl_gpioa + 1] = {
+	(volatile u32 *)0x52020000U, /* GPIOA */
+	(volatile u32 *)0x52020400U, /* GPIOB */
+	(volatile u32 *)0x52020800U, /* GPIOC */
+	(volatile u32 *)0x52020c00U, /* GPIOD */
+	(volatile u32 *)0x52021000U, /* GPIOE */
+	(volatile u32 *)0x52021400U, /* GPIOF */
+	(volatile u32 *)0x52021800U, /* GPIOG */
+	(volatile u32 *)0x52021c00U, /* GPIOH */
+	(volatile u32 *)0x52022000U  /* GPIOI */
+};
+
+#define EXTI_BASE  ((void *)0x54022000U)
+#define EXTI_LINES 59U
 #else
 #error "Unsupported platform"
 #endif
