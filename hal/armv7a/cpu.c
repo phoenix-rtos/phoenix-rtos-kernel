@@ -244,10 +244,7 @@ char *hal_cpuFeatures(char *features, size_t len)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	/* In theory there should be 8-byte thread control block but
-	 * it's stored elsewhere so we need to subtract 8 from the pointer
-	 */
-	ptr_t ptr = tls->tls_base - 8U;
+	ptr_t ptr = hal_tlsTp(tls);
 	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(ptr));
 }
 
