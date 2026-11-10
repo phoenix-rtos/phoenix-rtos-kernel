@@ -36,6 +36,9 @@
 #define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 1
+#define HAL_TLS_TCBSZ   8U
+
 #ifdef CPU_IMXRT
 #define RET_HANDLER_MSP 0xffffffe1U
 #define RET_THREAD_MSP  0xffffffe9U
