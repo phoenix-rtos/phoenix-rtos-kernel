@@ -23,9 +23,13 @@ mutex_t *mutex_get(int h)
 {
 	thread_t *t = proc_current();
 	resource_t *r = resource_get(t->process, h);
-	LIB_ASSERT((r == NULL) || (r->type == rtLock), "process: %s, pid: %d, tid: %d, handle: %d, resource type mismatch",
-			t->process->path, process_getPid(t->process), proc_getTid(t), h);
-	return ((r != NULL) && (r->type == rtLock)) ? r->payload.mutex : NULL;
+
+	if ((r != NULL) && (r->type != rtLock)) {
+		proc_resourcePut(r);
+		return NULL;
+	}
+
+	return (r != NULL) ? r->payload.mutex : NULL;
 }
 
 

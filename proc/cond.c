@@ -24,9 +24,13 @@ cond_t *cond_get(int c)
 {
 	thread_t *t = proc_current();
 	resource_t *r = resource_get(t->process, c);
-	LIB_ASSERT((r == NULL) || (r->type == rtCond), "process: %s, pid: %d, tid: %d, handle: %d, resource type mismatch",
-			t->process->path, process_getPid(t->process), proc_getTid(t), c);
-	return ((r != NULL) && (r->type == rtCond)) ? r->payload.cond : NULL;
+
+	if ((r != NULL) && (r->type != rtCond)) {
+		proc_resourcePut(r);
+		return NULL;
+	}
+
+	return (r != NULL) ? r->payload.cond : NULL;
 }
 
 
