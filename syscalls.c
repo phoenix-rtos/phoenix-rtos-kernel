@@ -325,6 +325,15 @@ int syscalls_beginthreadex(u8 *ustack)
 		return -EFAULT;
 	}
 
+	/* Check stack == NULL separately - additional check to ensure that thread isn't created with kernel privileges */
+	if ((stack == NULL) || (stacksz < MIN_SIZE_USTACK)) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc, stack, stacksz) < 0) {
+		return -EFAULT;
+	}
+
 	if (priority < MIN_PRIO || priority > MAX_PRIO) {
 		return -EINVAL;
 	}

@@ -32,6 +32,10 @@
 #define SIZE_USTACK (3U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
