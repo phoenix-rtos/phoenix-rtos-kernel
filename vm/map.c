@@ -1002,6 +1002,19 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 }
 
 
+/* Writable borrows must target the page private to the source entry. A present page may still be
+ * a read-only mapping of a shared object page or a COW-shared anon (NEEDSCOPY is cleared for the whole
+ * entry on the first write fault), so force a write fault unless the entry has explicitly owned pages only. */
+static int _map_borrowNeedsForce(const map_entry_t *srcEntry, vm_prot_t prot)
+{
+	if ((prot & PROT_WRITE) == 0U) {
+		return 0;
+	}
+
+	return ((srcEntry->object != map_common.kernel) || (srcEntry->amap != NULL)) ? 1 : 0;
+}
+
+
 int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcaddr, size_t size, vm_prot_t prot)
 {
 	ptr_t offset, i;
@@ -1014,6 +1027,11 @@ int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcadd
 	int err = EOK;
 
 	if (((size & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)dstaddr & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)srcaddr & (SIZE_PAGE - 1U)) != 0U)) {
+		return -EINVAL;
+	}
+
+	/* The kernel map can't hold borrowed entries: amap_create()/_map_force()/unmapping can deadlock on kmap lock through kmalloc/kfree */
+	if (dstMap == map_common.kmap) {
 		return -EINVAL;
 	}
 
@@ -1060,13 +1078,17 @@ int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcadd
 		srcOverlapStart = (ptr_t)srcaddr + offset - (ptr_t)srcEntry->vaddr;
 		overlapSize = min(srcEntry->size - srcOverlapStart, size - offset);
 
-		if (((srcEntry->state & ENTRY_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
-			/* Ensure all pages are writable to avoid breaking COW pages and lazy allocation of writable shared map entries */
+		if (_map_borrowNeedsForce(srcEntry, prot) != 0) {
+			/* Make all pages present and private (break COW) in the source map, so the
+			 * borrower writes to the same page the source sees, not to a shared object/anon page */
 			for (i = offset; i < offset + overlapSize; i += SIZE_PAGE) {
-				err = _map_force(srcMap, srcEntry, srcaddr + i, prot);
+				err = _map_force(srcMap, srcEntry, srcaddr + i, srcEntry->prot);
 				if (err != EOK) {
 					break;
 				}
+			}
+			if (err != EOK) {
+				break;
 			}
 		}
 
@@ -1083,8 +1105,21 @@ int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcadd
 		}
 		dstEntry->object = vm_objectRef(srcEntry->object);
 		dstEntry->offs = srcEntry->offs == VM_OFFS_MAX ? VM_OFFS_MAX : srcEntry->offs + srcOverlapStart;
-		dstEntry->amap = amap_ref(srcEntry->amap);
 		dstEntry->aoffs = srcEntry->aoffs + srcOverlapStart;
+		if (srcEntry->amap != NULL) {
+			/* Create a separate amap sharing the same anons. amap_create() consumes the passed reference
+			 * when copying - the extra ref guarantees a copy is made (srcEntry still holds its own ref) */
+			dstEntry->amap = amap_create(amap_ref(srcEntry->amap), &dstEntry->aoffs, overlapSize);
+			if (dstEntry->amap == NULL) {
+				amap_put(srcEntry->amap);
+				dstEntry->aoffs = 0;
+				err = -ENOMEM;
+				break;
+			}
+		}
+		else {
+			dstEntry->amap = NULL;
+		}
 		dstEntry->state = srcEntry->state | ENTRY_BORROWED; /* Ensure that the dstEntry amap is not modified nor merged with future dstMap mappings */
 		dstEntry->prot = prot;
 		dstEntry->protOrig = prot;
