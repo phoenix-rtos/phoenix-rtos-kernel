@@ -31,35 +31,124 @@ static struct {
 } msg_common;
 
 
+/* Maps a shadow page into process map dstmap at dst, holding len bytes from src at offs (rest zeroed).
+ * The page is ordinary anonymous memory, so it is refcounted like any other page and stays valid as long as
+ * any holder (the receiver window or a borrower, e.g. when the receiver forwards the data) maps it. */
+static int msg_mapShadow(vm_map_t *dstmap, void *dst, vm_prot_t prot, vm_flags_t flags, size_t offs, const void *src, size_t len)
+{
+	map_entry_t e;
+	void *v;
+
+	/* Zeroed anonymous page, writable for the fill below */
+	if (vm_mmap(dstmap, dst, NULL, SIZE_PAGE, prot | PROT_WRITE, NULL, -1, flags | MAP_NOINHERIT | MAP_FIXED, 0U) == NULL) {
+		return -ENOMEM;
+	}
+
+	/* Fill through a borrowed kernel mapping - the page is pinned even if the receiver unmaps it meanwhile */
+	v = vm_mapBorrowPage(&e, dstmap, dst, PROT_READ | PROT_WRITE);
+	if (v == NULL) {
+		return -ENOMEM;
+	}
+	hal_memcpy(v + offs, src, len);
+	vm_mapReturnPage(&e);
+
+	if ((prot & PROT_WRITE) == 0U) {
+		return vm_mprotect(dstmap, dst, SIZE_PAGE, prot);
+	}
+
+	return EOK;
+}
+
+
+/* Copies size bytes between kernel buffer buf and data in map (into buf if out == 0, back to data otherwise).
+ * Each source page is pinned only for the duration of its copy, no mapping of it is kept. */
+static int msg_copy(vm_map_t *map, void *data, void *buf, size_t size, int out)
+{
+	map_entry_t e;
+	size_t offs, len;
+	void *page, *v;
+
+	while (size > 0U) {
+		page = (void *)FLOOR((ptr_t)data);
+		offs = (size_t)((ptr_t)data - (ptr_t)page);
+		len = min(size, SIZE_PAGE - offs);
+
+		v = vm_mapBorrowPage(&e, map, page, (out != 0) ? (PROT_READ | PROT_WRITE) : PROT_READ);
+		if (v == NULL) {
+			return -EFAULT;
+		}
+
+		if (out != 0) {
+			hal_memcpy(v + offs, buf, len);
+		}
+		else {
+			hal_memcpy(buf, v + offs, len);
+		}
+
+		vm_mapReturnPage(&e);
+
+		data += len;
+		buf += len;
+		size -= len;
+	}
+
+	return EOK;
+}
+
+
+/* Kernel receiver: copy the data into a private kernel buffer instead of mapping the sender pages. Zero-copy
+ * windows need refcounted (amap-backed) borrowed entries, which the kernel map can't hold - releasing them
+ * calls vm_kfree() with the kmap lock held, which deadlocks when a kmalloc zone gets released */
+static void *msg_mapKernel(struct _kmsg_layout_t *ml, void *data, size_t size, vm_map_t *datamap)
+{
+	ml->kp = vm_pageAlloc(size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+	if (ml->kp == NULL) {
+		return NULL;
+	}
+
+	ml->wsz = (size_t)1U << ml->kp->idx;
+	ml->w = vm_mmap(msg_common.kmap, NULL, ml->kp, ml->wsz, PROT_READ | PROT_WRITE, msg_common.kernel, -1, MAP_NONE, 0U);
+	if (ml->w == NULL) {
+		return NULL;
+	}
+
+	ml->src = data;
+	ml->srcmap = datamap;
+
+	if (msg_copy(datamap, data, ml->w, size, 0) < 0) {
+		return NULL;
+	}
+
+	return ml->w;
+}
+
+
 static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
 {
 	void *w = NULL, *vaddr;
 	size_t boffs, eoffs;
 	u8 bone, eone;
 	size_t n = 0;
-	vm_attr_t attr;
-	vm_prot_t prot;
-	page_t *nep = NULL, *nbp = NULL;
-	vm_map_t *srcmap, *dstmap;
+	vm_prot_t prot, sprot;
+	vm_map_t *srcmap, *dstmap, *datamap;
 	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
 	int err;
 	vm_flags_t flags;
-	addr_t bpa, epa;
 
 	if ((size == 0U) || (data == NULL)) {
 		return NULL;
 	}
 
-	attr = PGHD_READ | PGHD_PRESENT;
 	prot = PROT_READ;
 
 	if (dir != 0) {
-		attr |= PGHD_WRITE;
 		prot |= PROT_WRITE;
 	}
 
+	/* Kernel mapping of the source pages - written back on respond only for output */
+	sprot = prot;
+
 	if (to != NULL) {
-		attr |= PGHD_USER;
 		prot |= PROT_USER;
 	}
 
@@ -87,64 +176,42 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		return data;
 	}
 
-	w = vm_mapFind(dstmap, NULL, (n + bone + eone) * SIZE_PAGE, MAP_NOINHERIT, prot);
+	datamap = (pmap_belongs(&srcmap->pmap, data) != 0) ? srcmap : msg_common.kmap;
+
+	if (dstmap == msg_common.kmap) {
+		return msg_mapKernel(ml, data, size, datamap);
+	}
+
+	ml->wsz = (n + bone + eone) * SIZE_PAGE;
+	w = vm_mapFind(dstmap, NULL, ml->wsz, MAP_NOINHERIT, prot);
 	ml->w = w;
 	if (w == NULL) {
 		return NULL;
 	}
 
-	if (pmap_belongs(&srcmap->pmap, data) != 0) {
-		err = vm_mapFlags(srcmap, data);
-	}
-	else {
-		err = vm_mapFlags(msg_common.kmap, data);
-	}
-
+	err = vm_mapFlags(datamap, data);
 	if (err < 0) {
 		return NULL;
 	}
-	flags = (vm_flags_t)err;
-
-	attr |= vm_flagsToAttr(flags);
+	/* Shadow pages are fresh memory - keep only the caching attributes of the source */
+	flags = (vm_flags_t)err & (MAP_UNCACHED | MAP_DEVICE);
 
 	if (boffs != 0U) {
 		ml->boffs = boffs;
-		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		ml->bp = nbp;
-		if (nbp == NULL) {
-			return NULL;
-		}
-
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags, 0U);
-		ml->bvaddr = vaddr;
+		vaddr = vm_mapBorrowPage(&ml->be, datamap, (void *)FLOOR((ptr_t)data), sprot);
 		if (vaddr == NULL) {
 			return NULL;
 		}
 
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w, nbp->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return NULL;
-		}
-
-		hal_memcpy(w + boffs, vaddr + boffs, (size_t)min(size, SIZE_PAGE - boffs));
-
-		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
+		if (msg_mapShadow(dstmap, w, prot, flags, boffs, vaddr + boffs, (size_t)min(size, SIZE_PAGE - boffs)) < 0) {
 			return NULL;
 		}
 	}
 
 	/* Map pages */
-	vaddr = (void *)CEIL((ptr_t)data);
-
 	if (n > 0U) {
-		if (pmap_belongs(&srcmap->pmap, data) != 0) {
-			err = vm_mapBorrow(dstmap, w + bone * SIZE_PAGE, srcmap, vaddr, n * SIZE_PAGE, prot);
-		}
-		else {
-			err = vm_mapBorrow(dstmap, w + bone * SIZE_PAGE, msg_common.kmap, vaddr, n * SIZE_PAGE, prot);
-		}
+		err = vm_mapBorrow(dstmap, w + bone * SIZE_PAGE, datamap, (void *)CEIL((ptr_t)data), n * SIZE_PAGE, prot);
 		if (err < 0) {
 			return NULL;
 		}
@@ -152,34 +219,13 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	if (eoffs != 0U) {
 		ml->eoffs = eoffs;
-		vaddr = (void *)FLOOR((ptr_t)data + size);
-		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
-		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-			ml->ep = nep;
-			if (nep == NULL) {
-				return NULL;
-			}
-		}
-		else {
-			nep = nbp;
-		}
-
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags, 0U);
-		ml->evaddr = vaddr;
+		vaddr = vm_mapBorrowPage(&ml->ee, datamap, (void *)FLOOR((ptr_t)data + size), sprot);
 		if (vaddr == NULL) {
 			return NULL;
 		}
 
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return NULL;
-		}
-
-		hal_memcpy(w + (n + bone) * SIZE_PAGE, vaddr, eoffs);
-
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, attr) < 0) {
+		if (msg_mapShadow(dstmap, w + (n + bone) * SIZE_PAGE, prot, flags, 0U, vaddr, eoffs) < 0) {
 			return NULL;
 		}
 	}
@@ -188,25 +234,35 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 }
 
 
+static void msg_releaseLayout(struct _kmsg_layout_t *ml, vm_map_t *map)
+{
+	vm_mapReturnPage(&ml->be);
+	vm_mapReturnPage(&ml->ee);
+
+	if (ml->kp != NULL) {
+		/* Kernel receiver buffer */
+		if (ml->w != NULL) {
+			(void)vm_munmap(msg_common.kmap, ml->w, ml->wsz);
+			ml->w = NULL;
+		}
+		vm_pageFree(ml->kp);
+		ml->kp = NULL;
+	}
+	else if (ml->w != NULL) {
+		/* Shadow pages are anon-backed - unmapping drops the window's reference to them */
+		(void)vm_munmap(map, ml->w, ml->wsz);
+		ml->w = NULL;
+	}
+
+	ml->boffs = 0;
+	ml->eoffs = 0;
+}
+
+
 static void msg_release(kmsg_t *kmsg)
 {
 	process_t *process;
 	vm_map_t *map;
-
-	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
-		kmsg->i.bp = NULL;
-	}
-
-	if (kmsg->i.eoffs != 0U) {
-		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
-		kmsg->i.eoffs = 0;
-		kmsg->i.ep = NULL;
-	}
 
 	process = proc_current()->process;
 	if (process != NULL) {
@@ -216,30 +272,8 @@ static void msg_release(kmsg_t *kmsg)
 		map = msg_common.kmap;
 	}
 
-	if (kmsg->i.w != NULL) {
-		(void)vm_munmap(map, kmsg->i.w, CEIL((ptr_t)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((ptr_t)kmsg->msg.i.data));
-		kmsg->i.w = NULL;
-	}
-
-	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
-		kmsg->o.bp = NULL;
-	}
-
-	if (kmsg->o.eoffs != 0U) {
-		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
-		kmsg->o.eoffs = 0;
-		kmsg->o.ep = NULL;
-	}
-
-	if (kmsg->o.w != NULL) {
-		(void)vm_munmap(map, kmsg->o.w, CEIL((ptr_t)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((ptr_t)kmsg->msg.o.data));
-		kmsg->o.w = NULL;
-	}
+	msg_releaseLayout(&kmsg->i, map);
+	msg_releaseLayout(&kmsg->o, map);
 }
 
 
@@ -499,21 +533,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		return err;
 	}
 
-	kmsg->i.bvaddr = NULL;
-	kmsg->i.boffs = 0;
-	kmsg->i.w = NULL;
-	kmsg->i.bp = NULL;
-	kmsg->i.evaddr = NULL;
-	kmsg->i.eoffs = 0;
-	kmsg->i.ep = NULL;
-
-	kmsg->o.bvaddr = NULL;
-	kmsg->o.boffs = 0;
-	kmsg->o.w = NULL;
-	kmsg->o.bp = NULL;
-	kmsg->o.evaddr = NULL;
-	kmsg->o.eoffs = 0;
-	kmsg->o.ep = NULL;
+	hal_memset(&kmsg->i, 0, sizeof(kmsg->i));
+	hal_memset(&kmsg->o, 0, sizeof(kmsg->o));
 
 	if ((kmsg->msg.i.data >= (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw))) {
 		ipacked = 1;
@@ -579,21 +600,18 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		return -ENOENT;
 	}
 
-	/* Copy shadow pages */
-	if (kmsg->i.bp != NULL) {
-		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, (size_t)min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
+	/* Copy output shadow pages back (input is mapped read-only in the receiver) */
+	if (kmsg->o.be.map != NULL) {
+		hal_memcpy(kmsg->o.be.vaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
 	}
 
-	if (kmsg->i.eoffs != 0U) {
-		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, (size_t)kmsg->i.eoffs);
+	if (kmsg->o.ee.map != NULL) {
+		hal_memcpy(kmsg->o.ee.vaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, (size_t)kmsg->o.eoffs);
 	}
 
-	if (kmsg->o.bp != NULL) {
-		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
-	}
-
-	if (kmsg->o.eoffs != 0U) {
-		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, (size_t)kmsg->o.eoffs);
+	/* Kernel receiver - copy the whole output buffer back */
+	if ((kmsg->o.kp != NULL) && (kmsg->o.w != NULL)) {
+		(void)msg_copy(kmsg->o.srcmap, kmsg->o.src, kmsg->o.w, kmsg->msg.o.size, 1);
 	}
 
 	msg_release(kmsg);

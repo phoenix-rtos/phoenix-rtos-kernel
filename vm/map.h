@@ -85,6 +85,15 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_p
 int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcaddr, size_t size, vm_prot_t prot);
 
 
+/* Maps a single page of srcMap into the kernel map using caller-owned entry e.
+ * The entry holds references to the source page until vm_mapReturnPage(). prot: PROT_READ [| PROT_WRITE] */
+void *vm_mapBorrowPage(map_entry_t *e, vm_map_t *srcMap, void *srcaddr, vm_prot_t prot);
+
+
+/* Unmaps page borrowed with vm_mapBorrowPage() and drops its references. No-op if e->map == NULL */
+void vm_mapReturnPage(map_entry_t *e);
+
+
 void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags, vm_state_t state);
 
 

@@ -1154,6 +1154,115 @@ int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcadd
 }
 
 
+void *vm_mapBorrowPage(map_entry_t *e, vm_map_t *srcMap, void *srcaddr, vm_prot_t prot)
+{
+	map_entry_t f, *srcEntry, *prev, *next;
+	vm_map_t *kmap = map_common.kmap;
+	size_t srcOffs;
+	addr_t pa = 0U;
+	void *v = NULL;
+	int err = EOK;
+
+	e->map = NULL;
+
+	if ((((ptr_t)srcaddr & (SIZE_PAGE - 1U)) != 0U) || ((prot & ~(PROT_READ | PROT_WRITE)) != 0U)) {
+		return NULL;
+	}
+
+	/* Take references to the source page (amap anon/object) so it can't be freed while borrowed */
+	(void)proc_lockSet(&srcMap->lock);
+
+	f.vaddr = srcaddr;
+	f.size = SIZE_PAGE;
+	srcEntry = lib_treeof(map_entry_t, linkage, lib_rbFind(&srcMap->tree, &f.linkage));
+	if ((srcEntry == NULL) || ((srcEntry->prot & prot) != prot)) {
+		err = -EINVAL;
+	}
+	else {
+		pa = pmap_resolve(&srcMap->pmap, srcaddr);
+		if ((pa == 0U) || (_map_borrowNeedsForce(srcEntry, prot) != 0)) {
+			/* Ensure the page is present (and private if writable) in the source map - see _map_borrowNeedsForce */
+			err = _map_force(srcMap, srcEntry, srcaddr, (srcEntry->prot & ~PROT_WRITE) | prot);
+			if (err == EOK) {
+				pa = pmap_resolve(&srcMap->pmap, srcaddr);
+			}
+		}
+	}
+
+	if (err == EOK) {
+		srcOffs = (size_t)((ptr_t)srcaddr - (ptr_t)srcEntry->vaddr);
+		e->object = vm_objectRef(srcEntry->object);
+		e->offs = (srcEntry->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (srcEntry->offs + srcOffs);
+		e->aoffs = srcEntry->aoffs + srcOffs;
+		e->amap = NULL;
+		e->flags = srcEntry->flags;
+		if (srcEntry->amap != NULL) {
+			/* Separate amap sharing the same anon - see vm_mapBorrow */
+			e->amap = amap_create(amap_ref(srcEntry->amap), &e->aoffs, SIZE_PAGE);
+			if (e->amap == NULL) {
+				amap_put(srcEntry->amap);
+				(void)vm_objectPut(e->object);
+				err = -ENOMEM;
+			}
+			else {
+				amap_getanons(e->amap, e->aoffs, SIZE_PAGE);
+			}
+		}
+	}
+
+	(void)proc_lockClear(&srcMap->lock);
+
+	if (err != EOK) {
+		return NULL;
+	}
+
+	e->size = SIZE_PAGE;
+	e->state = ENTRY_BORROWED; /* Never merged with other kmap entries */
+	e->prot = prot;
+	e->protOrig = prot;
+
+	/* Map the page in the kernel using the caller provided entry */
+	(void)proc_lockSet(&kmap->lock);
+	v = _map_find(kmap, NULL, SIZE_PAGE, &prev, &next);
+	if (v != NULL) {
+		e->vaddr = v;
+		(void)_map_add(NULL, kmap, e);
+		if (page_map(&kmap->pmap, v, pa & ~(addr_t)(SIZE_PAGE - 1U), vm_protToAttr(prot) | vm_flagsToAttr(e->flags)) < 0) {
+			_map_remove(kmap, e);
+			v = NULL;
+		}
+	}
+	(void)proc_lockClear(&kmap->lock);
+
+	if (v == NULL) {
+		amap_putanons(e->amap, e->aoffs, SIZE_PAGE);
+		amap_put(e->amap);
+		(void)vm_objectPut(e->object);
+	}
+
+	return v;
+}
+
+
+void vm_mapReturnPage(map_entry_t *e)
+{
+	vm_map_t *map = e->map;
+
+	if (map == NULL) {
+		return;
+	}
+
+	(void)proc_lockSet(&map->lock);
+	(void)pmap_remove(&map->pmap, e->vaddr, e->vaddr + e->size);
+	_map_remove(map, e);
+	(void)proc_lockClear(&map->lock);
+
+	amap_putanons(e->amap, e->aoffs, e->size);
+	amap_put(e->amap);
+	(void)vm_objectPut(e->object);
+}
+
+
 void vm_mapDump(vm_map_t *map)
 {
 	if (map == NULL) {
