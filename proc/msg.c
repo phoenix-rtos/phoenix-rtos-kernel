@@ -32,31 +32,32 @@ static struct {
 
 
 /* Maps a shadow page into process map dstmap at dst, holding len bytes from src at offs (rest zeroed).
- * The page is ordinary anonymous memory, so it is refcounted like any other page and stays valid as long as
- * any holder (the receiver window or a borrower, e.g. when the receiver forwards the data) maps it. */
+ * The page is anon-backed, so it is refcounted like any other page and stays valid as long as any holder
+ * (the receiver window or a borrower, e.g. when the receiver forwards the data) maps it. */
 static int msg_mapShadow(vm_map_t *dstmap, void *dst, vm_prot_t prot, vm_flags_t flags, size_t offs, const void *src, size_t len)
 {
-	map_entry_t e;
+	page_t *p;
 	void *v;
 
-	/* Zeroed anonymous page, writable for the fill below */
-	if (vm_mmap(dstmap, dst, NULL, SIZE_PAGE, prot | PROT_WRITE, NULL, -1, flags | MAP_NOINHERIT | MAP_FIXED, 0U) == NULL) {
+	/* Fill the page while only the kernel sees it, then publish it with its final protection */
+	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	if (p == NULL) {
 		return -ENOMEM;
 	}
 
-	/* Fill through a borrowed kernel mapping - the page is pinned even if the receiver unmaps it meanwhile */
-	v = vm_mapBorrowPage(&e, dstmap, dst, PROT_READ | PROT_WRITE);
+	v = vm_mmap(msg_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, MAP_NONE, 0U);
 	if (v == NULL) {
+		vm_pageFree(p);
 		return -ENOMEM;
 	}
+	/* Don't leak stale page contents to the receiver */
+	hal_memset(v, 0, offs);
 	hal_memcpy(v + offs, src, len);
-	vm_mapReturnPage(&e);
+	hal_memset(v + offs + len, 0, SIZE_PAGE - offs - len);
+	(void)vm_munmap(msg_common.kmap, v, SIZE_PAGE);
 
-	if ((prot & PROT_WRITE) == 0U) {
-		return vm_mprotect(dstmap, dst, SIZE_PAGE, prot);
-	}
-
-	return EOK;
+	/* Consumes p */
+	return vm_mapAnonPage(dstmap, dst, p, prot, flags | MAP_NOINHERIT);
 }
 
 

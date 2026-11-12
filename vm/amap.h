@@ -21,8 +21,10 @@ struct _vm_map_t;
 struct _vm_object_t;
 
 
+/* Anonymous page, shared by all amaps referencing it. page is immutable, refs is atomic.
+ * refs can only be increased by a holder of the lock of an amap referencing the anon (amap_getanons) while
+ * that amap's slot keeps a reference - so a holder of the only reference (refs == 1) can't race with increments */
 typedef struct _anon_t {
-	lock_t lock;
 	int refs;
 	page_t *page;
 } anon_t;
@@ -49,6 +51,11 @@ void amap_getanons(amap_t *amap, size_t offset, size_t size);
 
 
 amap_t *amap_create(amap_t *amap, size_t *offset, size_t size);
+
+
+/* Creates an amap with a single anon at offset 0 that takes ownership of page p.
+ * On failure p is not consumed. */
+amap_t *amap_createPage(page_t *p);
 
 
 void amap_put(amap_t *amap);

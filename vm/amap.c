@@ -31,15 +31,11 @@ static anon_t *amap_putanon(anon_t *a)
 	if (a == NULL) {
 		return NULL;
 	}
-	(void)proc_lockSet(&a->lock);
-	if (--a->refs != 0) {
-		(void)proc_lockClear(&a->lock);
+	if (lib_atomicDecrement(&a->refs) != 0) {
 		return a;
 	}
 
 	vm_pageFree(a->page);
-	(void)proc_lockClear(&a->lock);
-	(void)proc_lockDone(&a->lock);
 	vm_kfree(a);
 	return NULL;
 }
@@ -67,9 +63,7 @@ static anon_t *amap_getanon(anon_t *a)
 		return NULL;
 	}
 
-	(void)proc_lockSet(&a->lock);
-	++a->refs;
-	(void)proc_lockClear(&a->lock);
+	(void)lib_atomicIncrement(&a->refs);
 
 	return a;
 }
@@ -197,9 +191,28 @@ static anon_t *anon_new(page_t *p)
 
 	a->page = p;
 	a->refs = 1;
-	(void)proc_lockInit(&a->lock, &proc_lockAttrDefault, "amap.anon");
 
 	return a;
+}
+
+
+amap_t *amap_createPage(page_t *p)
+{
+	size_t offs = 0;
+	amap_t *amap;
+
+	amap = amap_create(NULL, &offs, SIZE_PAGE);
+	if (amap == NULL) {
+		return NULL;
+	}
+
+	amap->anons[0] = anon_new(p);
+	if (amap->anons[0] == NULL) {
+		amap_put(amap);
+		return NULL;
+	}
+
+	return amap;
 }
 
 
@@ -233,10 +246,10 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 
 	a = amap->anons[aoffs / SIZE_PAGE];
 	if (a != NULL) {
-		(void)proc_lockSet(&a->lock);
 		*page = a->page;
-		if (!(a->refs > 1 && (prot & PROT_WRITE) != 0U)) {
-			(void)proc_lockClear(&a->lock);
+		/* refs == 1: we hold the only reference, nobody can take a new one (see anon_t) - use in place.
+		 * refs > 1: copy. Another holder may copy concurrently - the last amap_putanon() below frees the page. */
+		if (!((__atomic_load_n(&a->refs, __ATOMIC_ACQUIRE) > 1) && ((prot & PROT_WRITE) != 0U))) {
 			(void)proc_lockClear(&amap->lock);
 			return EOK;
 		}
@@ -261,9 +274,6 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 
 	v = amap_map(map, *page);
 	if (v == NULL) {
-		if (a != NULL) {
-			(void)proc_lockClear(&a->lock);
-		}
 		(void)proc_lockClear(&amap->lock);
 		return -ENOMEM;
 	}
@@ -273,9 +283,6 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 		*page = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 		if (*page == NULL) {
 			(void)amap_unmap(map, v);
-			if (a != NULL) {
-				(void)proc_lockClear(&a->lock);
-			}
 			(void)proc_lockClear(&amap->lock);
 			return -ENOMEM;
 		}
@@ -284,9 +291,6 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 			vm_pageFree(*page);
 			*page = NULL;
 			(void)amap_unmap(map, v);
-			if (a != NULL) {
-				(void)proc_lockClear(&a->lock);
-			}
 			(void)proc_lockClear(&amap->lock);
 			return -ENOMEM;
 		}
@@ -299,10 +303,8 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 
 	(void)amap_unmap(map, v);
 
-	if (a != NULL) {
-		a->refs--;
-		(void)proc_lockClear(&a->lock);
-	}
+	/* Drop this amap's reference to the shared anon - frees it if the other holders dropped theirs meanwhile */
+	(void)amap_putanon(a);
 
 	amap->anons[aoffs / SIZE_PAGE] = anon_new(*page);
 	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {

@@ -94,6 +94,12 @@ void *vm_mapBorrowPage(map_entry_t *e, vm_map_t *srcMap, void *srcaddr, vm_prot_
 void vm_mapReturnPage(map_entry_t *e);
 
 
+/* Maps page p at page-aligned vaddr in map (replacing any existing mapping there) as an anonymous,
+ * refcounted page: p is owned by an anon and freed when the last holder (this mapping or any borrower)
+ * releases it. Always consumes p - on failure it is freed. Not allowed for the kernel map. */
+int vm_mapAnonPage(vm_map_t *map, void *vaddr, page_t *p, vm_prot_t prot, vm_flags_t flags);
+
+
 void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags, vm_state_t state);
 
 

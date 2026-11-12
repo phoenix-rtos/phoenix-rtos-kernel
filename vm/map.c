@@ -1263,6 +1263,72 @@ void vm_mapReturnPage(map_entry_t *e)
 }
 
 
+int vm_mapAnonPage(vm_map_t *map, void *vaddr, page_t *p, vm_prot_t prot, vm_flags_t flags)
+{
+	map_entry_t *e, *prev, *next;
+	amap_t *amap;
+	int err = EOK;
+
+	/* Not for the kernel map: unmapping an amap-backed kmap entry frees the amap/anon (vm_kfree)
+	 * with kmap lock held, which deadlocks when the kmalloc zone gets released (vm_munmap(kmap)) */
+	if ((map == map_common.kmap) || (((ptr_t)vaddr & (SIZE_PAGE - 1U)) != 0U)) {
+		vm_pageFree(p);
+		return -EINVAL;
+	}
+
+	/* Allocate before taking the map lock - vm_kmalloc may need the kernel map */
+	amap = amap_createPage(p);
+	if (amap == NULL) {
+		vm_pageFree(p);
+		return -ENOMEM;
+	}
+
+	e = map_alloc();
+	if (e == NULL) {
+		amap_putanons(amap, 0, SIZE_PAGE); /* Frees p */
+		amap_put(amap);
+		return -ENOMEM;
+	}
+
+	e->size = SIZE_PAGE;
+	e->object = NULL;
+	e->offs = VM_OFFS_MAX;
+	e->amap = amap;
+	e->aoffs = 0;
+	e->flags = flags;
+	e->state = ENTRY_BORROWED; /* Never merged nor amap-shared with neighbouring entries */
+	e->prot = prot;
+	e->protOrig = prot;
+
+	(void)proc_lockSet(&map->lock);
+
+	if (_vm_munmap(map, vaddr, SIZE_PAGE) < 0) {
+		err = -ENOMEM;
+	}
+	else if (_map_find(map, vaddr, SIZE_PAGE, &prev, &next) != vaddr) {
+		err = -EINVAL;
+	}
+	else {
+		e->vaddr = vaddr;
+		(void)_map_add(NULL, map, e);
+		if (page_map(&map->pmap, vaddr, p->addr, vm_protToAttr(prot) | vm_flagsToAttr(flags)) < 0) {
+			_map_remove(map, e);
+			err = -ENOMEM;
+		}
+	}
+
+	(void)proc_lockClear(&map->lock);
+
+	if (err != EOK) {
+		amap_putanons(amap, 0, SIZE_PAGE); /* Frees p */
+		amap_put(amap);
+		map_free(e);
+	}
+
+	return err;
+}
+
+
 void vm_mapDump(vm_map_t *map)
 {
 	if (map == NULL) {
