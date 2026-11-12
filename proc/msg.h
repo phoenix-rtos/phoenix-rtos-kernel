@@ -39,14 +39,21 @@ typedef struct _kmsg_t {
 
 #ifndef NOMMU
 	struct _kmsg_layout_t {
-		void *bvaddr;
-		size_t boffs;
-		void *w;
-		page_t *bp;
+		void *w;    /* Receiver mapping */
+		size_t wsz; /* Receiver mapping size */
 
-		void *evaddr;
+		/* Process receiver: partial first/last pages are copied into anon-backed (refcounted) shadow pages
+		 * mapped in the window, full pages are borrowed from the sender */
+		size_t boffs;
+		map_entry_t be; /* Kernel mapping of the first source page */
+
 		size_t eoffs;
-		page_t *ep;
+		map_entry_t ee; /* Kernel mapping of the last source page */
+
+		/* Kernel receiver: data is copied into a private kernel buffer (w) */
+		page_t *kp;               /* Kernel buffer pages */
+		void *src;                /* Sender data address */
+		struct _vm_map_t *srcmap; /* Sender data map */
 	} i, o;
 #else
 	void *imapped;
