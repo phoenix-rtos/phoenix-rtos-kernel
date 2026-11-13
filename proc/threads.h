@@ -157,6 +157,9 @@ void proc_threadsIter(unsigned int flags, proc_threadsListFn_t cb, void *arg);
 int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info);
 
 
+void proc_crash(thread_t *thread);
+
+
 int proc_threadsOther(thread_t *t);
 
 
