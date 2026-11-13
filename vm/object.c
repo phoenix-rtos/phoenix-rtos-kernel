@@ -20,6 +20,7 @@
 #include "map.h"
 #include "proc/name.h"
 #include "proc/threads.h"
+#include "proc/ports.h"
 
 
 static struct {
@@ -54,7 +55,44 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-int vm_objectGet(vm_object_t **o, oid_t oid)
+int vm_objectCheckAccess(vm_object_t *o, off_t offs, process_t *proc)
+{
+	port_t *port;
+	size_t i, maxMaps = sizeof(proc->partition->config->maps) / sizeof(proc->partition->config->maps[0]);
+	int map;
+
+	if ((o == NULL) || (proc == NULL) || (proc->partition == NULL)) {
+		return EOK;
+	}
+
+	if (o == VM_OBJ_PHYSMEM) {
+		map = vm_physicalMapByAddr((addr_t)offs);
+		if (((proc->partition->config->flags & (unsigned)pFlagAllMem) != 0U) || map == -1) {
+			return EOK; /* Allow access to devices outside of defined maps */
+		}
+		for (i = 0; i < maxMaps && proc->partition->config->maps[i] != (u8)-1; ++i) {
+			/* Check if the map matches the physical map */
+			if (proc->partition->config->maps[i] == (unsigned int)map) {
+				return EOK;
+			}
+		}
+		return -EACCES;
+	}
+
+	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
+		return o->part == proc->partition ? EOK : -EACCES;
+	}
+
+	port = proc_portGet(o->oid.port);
+	if (port == NULL || proc_isPortAllowed(port, proc, 0) == 0) {
+		return -EACCES;
+	}
+	port_put(port, 0);
+	return EOK;
+}
+
+
+int vm_objectGet(vm_object_t **o, oid_t oid, partition_t *part)
 {
 	vm_object_t t, *no = NULL;
 	size_t i, n;
@@ -100,6 +138,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			/* Safe to cast - sz fits into size_t from above checks */
 			(*o)->size = (size_t)sz;
 			(*o)->refs = 0;
+			(*o)->part = part;
 
 			for (i = 0; i < n; ++i) {
 				(*o)->pages[i] = NULL;
@@ -153,12 +192,12 @@ int vm_objectPut(vm_object_t *o)
 
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
-		vm_pageFree(o->pages[0]);
+		vm_pageFree(o->pages[0], o->part);
 	}
 	else {
 		for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
 			if (o->pages[i] != NULL) {
-				vm_pageFree(o->pages[i]);
+				vm_pageFree(o->pages[i], o->part);
 			}
 		}
 	}
@@ -169,37 +208,37 @@ int vm_objectPut(vm_object_t *o)
 }
 
 
-static page_t *object_fetch(oid_t oid, u64 offs)
+static page_t *object_fetch(vm_map_t *map, vm_object_t *o, u64 offs)
 {
 	page_t *p;
 	void *v;
 
-	if (proc_open(oid, 0) < 0) {
+	if (proc_open(o->oid, 0) < 0) {
 		return NULL;
 	}
 
-	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	p = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, o->part);
 	if (p == NULL) {
-		(void)proc_close(oid, 0);
+		(void)proc_close(o->oid, 0);
 		return NULL;
 	}
 
 	v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE);
 	if (v == NULL) {
-		vm_pageFree(p);
-		(void)proc_close(oid, 0);
+		vm_pageFree(p, o->part);
+		(void)proc_close(o->oid, 0);
 		return NULL;
 	}
 
-	if (proc_read(oid, (off_t)offs, v, SIZE_PAGE, 0) < 0) {
+	if (proc_read(o->oid, (off_t)offs, v, SIZE_PAGE, 0) < 0) {
 		(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
-		vm_pageFree(p);
-		(void)proc_close(oid, 0);
+		vm_pageFree(p, o->part);
+		(void)proc_close(o->oid, 0);
 		return NULL;
 	}
 
 	(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	(void)proc_close(oid, 0);
+	(void)proc_close(o->oid, 0);
 
 	return p;
 }
@@ -210,8 +249,11 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 	int err;
 
 	if (o == NULL) {
-		*page = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		return (*page != NULL) ? EOK : -ENOMEM;
+		if (amap != NULL && *amap != NULL) {
+			*page = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, (*amap)->partition);
+			return (*page != NULL) ? EOK : -ENOMEM;
+		}
+		return -EINVAL;
 	}
 
 	if (o == VM_OBJ_PHYSMEM) {
@@ -247,12 +289,12 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 
 	(void)proc_lockClear(&map->lock);
 
-	*page = object_fetch(o->oid, offs);
+	*page = object_fetch(map, o, offs);
 
 	err = vm_lockVerify(map, amap, o, vaddr, offs);
 	if (err != 0) {
 		if (*page != NULL) {
-			vm_pageFree(*page);
+			vm_pageFree(*page, o->part);
 		}
 
 		return err;
@@ -263,7 +305,7 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 	if (o->pages[offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
 		if (*page != NULL) {
-			vm_pageFree(*page);
+			vm_pageFree(*page, o->part);
 		}
 
 		*page = o->pages[offs / SIZE_PAGE];
@@ -282,8 +324,11 @@ vm_object_t *vm_objectContiguous(size_t size)
 	vm_object_t *o;
 	page_t *p;
 	size_t i, n;
+	process_t *proc = proc_current()->process;
+	ph_map_t **phMaps = (proc != NULL) ? proc->mapp->phMaps : object_common.kmap->phMaps;
+	partition_t *part = (proc != NULL) ? proc->partition : NULL;
 
-	p = vm_pageAlloc(size, PAGE_OWNER_APP);
+	p = vm_pageAlloc(phMaps, size, PAGE_OWNER_APP, part);
 	if (p == NULL) {
 		return NULL;
 	}
@@ -293,7 +338,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 
 	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
 	if (o == NULL) {
-		vm_pageFree(p);
+		vm_pageFree(p, part);
 		return NULL;
 	}
 
@@ -303,6 +348,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	o->oid.id = (id_t)(-1);
 	o->refs = 1;
 	o->size = size;
+	o->part = part;
 
 	for (i = 0; i < n; ++i) {
 		o->pages[i] = p + i;
@@ -329,7 +375,7 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	kernel->oid.id = 0;
 	(void)lib_rbInsert(&object_common.tree, &kernel->linkage);
 
-	(void)vm_objectGet(&o, kernel->oid);
+	(void)vm_objectGet(&o, kernel->oid, NULL);
 
 	return EOK;
 }
