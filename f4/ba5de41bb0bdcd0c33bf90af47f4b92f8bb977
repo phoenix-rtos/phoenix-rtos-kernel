@@ -1,0 +1,27 @@
+vm/object.h
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 54-60
+vm/object.c
+  s_aefb43ae6c4ab5::t_0899699863c8c0 224,252-257,281,301,304-310
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 216-223,225-237,240-244,246-249,251,259,261-273,276-280,282-300,302-303,311-312
+  s_aefb43ae6c4ab5::t_8a13dbb0518041 238-239,245,250,258,275
+  s_aefb43ae6c4ab5::t_e86776dce243a3 260,274,313-314
+vm/map.c
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 636-637,642-647
+  s_aefb43ae6c4ab5::t_6013423a8ad716 648-649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4ba5de41bb0bdcd0c33bf90af47f4b92f8bb977",
+  "prompts": {},
+  "sessions": {
+    "s_aefb43ae6c4ab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47024dd1-9607-45d7-a8d8-bac9bdaa5945",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
