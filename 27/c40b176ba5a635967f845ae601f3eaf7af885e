@@ -1,0 +1,26 @@
+include/arch/armv7a/imx6ull/imx6ull.h
+  s_aefb43ae6c4ab5::t_ab905c990bf5ce 251,253-254
+  s_aefb43ae6c4ab5::t_7b712ef3595838 210,255-256
+  s_aefb43ae6c4ab5::t_04914d74fa87fe 252
+hal/armv7a/imx6ull/imx6ull.c
+  s_aefb43ae6c4ab5::t_04914d74fa87fe 362-408,420,423
+  s_aefb43ae6c4ab5::t_ab905c990bf5ce 421-422,424
+  s_aefb43ae6c4ab5::t_7b712ef3595838 419
+  s_aefb43ae6c4ab5::t_e329c9de18c9c0 425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27c40b176ba5a635967f845ae601f3eaf7af885e",
+  "prompts": {},
+  "sessions": {
+    "s_aefb43ae6c4ab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47024dd1-9607-45d7-a8d8-bac9bdaa5945",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
