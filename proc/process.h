@@ -82,7 +82,7 @@ typedef struct _process_t {
 	struct _process_tls_template {
 		void *tls_base;
 		ptr_t *arm_m_tls;
-		size_t tdata_sz;
+		size_t data_sz;
 		size_t self_ptr_offs;
 		size_t self_ptr_align;
 		size_t alloc_sz;
