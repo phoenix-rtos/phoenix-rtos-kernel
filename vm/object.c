@@ -146,14 +146,15 @@ int vm_objectPut(vm_object_t *o)
 		return EOK;
 	}
 
-	lib_rbRemove(&object_common.tree, &o->linkage);
-	(void)proc_lockClear(&object_common.lock);
-
-	/* Contiguous object 'holds' all pages in pages[0] */
+	/* Contiguous object is not in the tree and 'holds' all pages in pages[0] */
 	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
+		(void)proc_lockClear(&object_common.lock);
 		vm_pageFree(o->pages[0]);
 	}
 	else {
+		lib_rbRemove(&object_common.tree, &o->linkage);
+		(void)proc_lockClear(&object_common.lock);
+
 		for (i = 0; i < num_pages(o->size); ++i) {
 			if (o->pages[i] != NULL) {
 				vm_pageFree(o->pages[i]);
