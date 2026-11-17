@@ -172,6 +172,7 @@ static page_t *object_fetch(oid_t oid, u64 offs)
 {
 	page_t *p;
 	void *v;
+	int len;
 
 	if (proc_open(oid, 0) < 0) {
 		return NULL;
@@ -190,11 +191,17 @@ static page_t *object_fetch(oid_t oid, u64 offs)
 		return NULL;
 	}
 
-	if (proc_read(oid, (off_t)offs, v, SIZE_PAGE, 0) < 0) {
+	len = proc_read(oid, (off_t)offs, v, SIZE_PAGE, 0);
+	if (len < 0) {
 		(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
 		(void)proc_close(oid, 0);
 		return NULL;
+	}
+
+	/* Short read (end of file): don't expose stale page content */
+	if ((size_t)len < SIZE_PAGE) {
+		hal_memset((char *)v + len, 0, SIZE_PAGE - (size_t)len);
 	}
 
 	(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
