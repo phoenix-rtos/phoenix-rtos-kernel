@@ -804,13 +804,6 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((ptr_t)vaddr & ~(SIZE_PAGE - 1U));
 
-#ifdef PAGEFAULTSTOP
-	process_dumpException(n, ctx);
-	/* clang-format off */
-	__asm__ volatile ("1: b 1b");
-	/* clang-format on */
-#endif
-
 	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) {
 		/* output exception ASAP to avoid being deadlocked on spinlock */
 		process_dumpException(n, ctx);
