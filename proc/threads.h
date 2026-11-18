@@ -68,6 +68,7 @@ typedef struct _thread_t {
 	int refs;
 
 	struct _thread_t **wait;
+	struct _lock_t *lockWait; /* Lock waited for, valid while wait == &lockWait->queue */
 	time_t wakeup;
 
 	priority_t priorityBase;
