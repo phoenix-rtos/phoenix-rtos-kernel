@@ -347,12 +347,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 	LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel");
 
-	/*
-	 * FIXME: In case signal is ignored or blocked, the process should be terminated
-	 * to avoid exception dump loop. In case it is handled, we should provide a mechanism
-	 * to force delivery of this signal before another pending ones.
-	 */
-	(void)threads_sigpost(process, thread, SIGILL);
+	threads_sigforce(thread, SIGILL);
 
 	if (thread->exit != 0U) {
 		proc_threadEnd();

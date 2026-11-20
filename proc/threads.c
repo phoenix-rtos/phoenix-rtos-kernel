@@ -47,6 +47,9 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 #define SIGNAL_TERMINATE_THREAD 1
 #define SIGNAL_IGNORE           2
 
+/* Synchronous (fault) signals - delivered before other pending signals (as Linux SYNCHRONOUS_MASK) */
+#define SIG_SYNC_MASK ((u32)((1UL << SIGSEGV) | (1UL << SIGBUS) | (1UL << SIGILL) | (1UL << SIGFPE) | (1UL << SIGTRAP)))
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL, .protocol = PH_LOCK_PROTO_INHERIT, .robust = PH_LOCK_STALLED };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -1868,11 +1871,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		return EOK;
 	}
 
-	/*
-	 * TODO: synchronous faults (SIGSEGV/SIGILL/SIGBUS/SIGFPE posted by exception handlers) which are
-	 * ignored or blocked here, return to the faulting instruction and fault again forever (no coredump).
-	 * The default action should be forced for them (as Linux force_sig_fault() does).
-	 */
+	/* NOTE: synchronous faults raised by exception handlers use threads_sigforce() instead */
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
 	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1930,12 +1929,49 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 }
 
 
+void threads_sigforce(thread_t *thread, int sig)
+{
+	process_t *process;
+	sighandler_t handler;
+	spinlock_ctx_t sc;
+	u32 sigbit;
+
+	LIB_ASSERT((sig > 0) && (sig < NSIG), "invalid signal %d", sig);
+	LIB_ASSERT_ALWAYS((thread != NULL) && (thread->process != NULL), "fault signal for kernel thread");
+
+	process = thread->process;
+	sigbit = (u32)1U << (unsigned int)sig;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	handler = (process->sigactions == NULL) ? SIG_DFL : process->sigactions[sig - 1].sa_handler;
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+	if ((handler == SIG_DFL) || (handler == SIG_IGN) || ((thread->sigmask & sigbit) != 0U)) {
+		/*
+		 * Returning to the faulting instruction with the signal ignored/blocked would fault again forever,
+		 * force the default action (as Linux force_sig_fault()). Covers a fault inside the handler itself.
+		 */
+		_proc_crash(thread, sig);
+	}
+	else {
+		/*
+		 * Delivered by threads_setupUserReturn() on the exception return path,
+		 * before any other pending signal (SIG_SYNC_MASK priority in _threads_checkSignal())
+		 */
+		thread->sigpend |= sigbit;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
 /* With installed handler returns signal number or -EINTR for a terminating signal */
 static int _threads_checkSignal(thread_t *selected, process_t *proc)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
 
-	unsigned int deliveryMask, curSig;
+	unsigned int deliveryMask, syncMask, curSig;
 	sighandler_t handler;
 	int defaultAction;
 
@@ -1944,8 +1980,11 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc)
 	}
 
 	deliveryMask = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
+	/* Thread-directed synchronous signals first - fault must be handled before returning to the faulting instruction */
+	syncMask = selected->sigpend & ~selected->sigmask & SIG_SYNC_MASK;
 	while (deliveryMask != 0U) {
-		curSig = hal_cpuGetFirstBit(deliveryMask);
+		curSig = hal_cpuGetFirstBit((syncMask != 0U) ? syncMask : deliveryMask);
+		syncMask &= ~(u32)(1UL << curSig);
 		if ((curSig < 1U) || (curSig >= (unsigned int)NSIG)) {
 			/* Skip invalid signal number */
 			selected->sigpend &= ~(u32)(1UL << curSig);
