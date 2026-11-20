@@ -50,6 +50,16 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 /* Synchronous (fault) signals - delivered before other pending signals (as Linux SYNCHRONOUS_MASK) */
 #define SIG_SYNC_MASK ((u32)((1UL << SIGSEGV) | (1UL << SIGBUS) | (1UL << SIGILL) | (1UL << SIGFPE) | (1UL << SIGTRAP)))
 
+/*
+ * Upper bound of the signal frame used by hal_cpuPushSignal() below user SP on all architectures:
+ * saved cpu_context_t + 192 bytes covering the largest of:
+ * - armv7m/armv8m: 7 args (28) + FPU hwctx copy (26 * 4 = 104) + STACK_ALIGN (16) = 148
+ * - sparcv8leon:   8 args (32) + register window save area (0x60) + STACK_ALIGN (16) = 144
+ * - aarch64/riscv64: 7 args (56) + STACK_ALIGN (16) = 72
+ * Kept tight on purpose - small NOMMU thread stacks are checked against it.
+ */
+#define SIG_FRAME_MAX (sizeof(cpu_context_t) + 192U)
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL, .protocol = PH_LOCK_PROTO_INHERIT, .robust = PH_LOCK_STALLED };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -657,7 +667,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc);
 
 
-static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src, int frameErr);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
@@ -668,6 +678,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx = NULL;
 	unsigned int cpuId = hal_cpuGetID();
+	int sigret, reselect;
 
 	(void)arg;
 	(void)n;
@@ -689,56 +700,75 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 	}
 
-	/* Select next thread */
-	idx = _readyMinPrioIdx();
-	while (idx < NPRIOS) {
-		selected = threads_common.ready[idx];
-		LIB_ASSERT(selected != NULL, "empty queue marked as nonempty?");
-		_readyRemove(selected);
+	do {
+		reselect = 0;
 
-		if (selected->exit == 0U) {
-			break;
-		}
-
-		if ((hal_cpuSupervisorMode(selected->context) != 0) && (selected->exit < THREAD_END_NOW)) {
-			break;
-		}
-
-		selected->state = GHOST;
-		LIST_ADD(&threads_common.ghosts, selected);
-		(void)_proc_threadWakeup(&threads_common.reaper);
-
+		/* Select next thread */
 		idx = _readyMinPrioIdx();
-		selected = NULL;
-	}
+		while (idx < NPRIOS) {
+			selected = threads_common.ready[idx];
+			LIB_ASSERT(selected != NULL, "empty queue marked as nonempty?");
+			_readyRemove(selected);
 
-	LIB_ASSERT(selected != NULL, "no threads to schedule");
+			if (selected->exit == 0U) {
+				break;
+			}
 
-	if (selected != NULL) {
-		selected->cpuId = cpuId;
-		threads_common.current[cpuId] = selected;
-		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
-		selCtx = selected->context;
+			if ((hal_cpuSupervisorMode(selected->context) != 0) && (selected->exit < THREAD_END_NOW)) {
+				break;
+			}
 
-		proc = selected->process;
-		if ((proc != NULL) && (proc->pmapp != NULL)) {
-			/* Switch address space */
-			pmap_switch(proc->pmapp);
+			selected->state = GHOST;
+			LIST_ADD(&threads_common.ghosts, selected);
+			(void)_proc_threadWakeup(&threads_common.reaper);
 
-			/* Check for signals to handle */
-			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
-				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
-				/* NOTE: Terminating signals are handled during delivery and should not reach this point */
-				if (_threads_trySignalDeliver(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
-					selCtx = signalCtx;
+			idx = _readyMinPrioIdx();
+			selected = NULL;
+		}
+
+		LIB_ASSERT(selected != NULL, "no threads to schedule");
+
+		if (selected != NULL) {
+			selected->cpuId = cpuId;
+			threads_common.current[cpuId] = selected;
+			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+			selCtx = selected->context;
+
+			proc = selected->process;
+			if ((proc != NULL) && (proc->pmapp != NULL)) {
+				/* Switch address space */
+				pmap_switch(proc->pmapp);
+
+				/* Check for signals to handle */
+				if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
+					signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
+					/* NOTE: Terminating signals are handled during delivery and should not reach this point */
+					sigret = _threads_trySignalDeliver(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED, 0);
+					if (sigret == 0) {
+						selCtx = signalCtx;
+					}
+					else if (sigret == -EFAULT) {
+						/* Signal frame could not be written - process crashed, never return to its user code */
+						threads_common.current[cpuId] = NULL;
+						selected->state = GHOST;
+						LIST_ADD(&threads_common.ghosts, selected);
+						(void)_proc_threadWakeup(&threads_common.reaper);
+						selected = NULL;
+						reselect = 1;
+					}
+					else {
+						/* No action required */
+					}
 				}
 			}
+			else {
+				/* Protects against use after free of process' memory map in SMP environment. */
+				pmap_switch(&threads_common.kmap->pmap);
+			}
 		}
-		else {
-			/* Protects against use after free of process' memory map in SMP environment. */
-			pmap_switch(&threads_common.kmap->pmap);
-		}
+	} while (reselect != 0);
 
+	if (selected != NULL) {
 		if (selected->longjmpctx != NULL) {
 			selCtx = selected->longjmpctx;
 			selected->longjmpctx = NULL;
@@ -2023,7 +2053,87 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc)
 }
 
 
-static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
+/* Returns 1 if user range [start, end) of proc can be accessed by the kernel without faulting */
+static int threads_userRangeAccessible(process_t *proc, ptr_t start, ptr_t end)
+{
+#ifdef NOMMU
+#ifdef NOMMU_MAPBELONGS_VALIDATE_MAP
+	return pmap_isAllowed(proc->pmapp, (const void *)start, end - start);
+#else
+	/* Same trust level as vm_mapBelongs() - MPU regions aren't reliable for all maps (e.g. armv7m without region for a map) */
+	(void)proc;
+	return (end > start) ? 1 : 0;
+#endif
+#else
+	ptr_t page;
+
+	if ((end <= start) || (end > (ptr_t)VADDR_USR_MAX)) {
+		return 0;
+	}
+
+	/* NOTE: only presence is checked (atomic context), write access is ensured by threads_sigframePrefault() */
+	for (page = start & ~((ptr_t)SIZE_PAGE - 1U); page < end; page += SIZE_PAGE) {
+		if (pmap_resolve(proc->pmapp, (void *)page) == 0U) {
+			return 0;
+		}
+	}
+
+	return 1;
+#endif
+}
+
+
+/*
+ * Validates the user stack area below sp for the signal frame. Returns:
+ * 0       - frame can be written,
+ * -EFAULT - stack overflow / invalid sp, frame can't ever be written,
+ * -EAGAIN - (MMU) frame area not resident, can't be populated in atomic context - retry on the next user return.
+ */
+static int _threads_sigframeCheck(const thread_t *t, process_t *proc, ptr_t sp)
+{
+	ptr_t low = sp - SIG_FRAME_MAX;
+	ptr_t base;
+
+	if (low > sp) {
+		return -EFAULT;
+	}
+
+	if (t->ustack != NULL) {
+		base = (ptr_t)t->ustack + sizeof(threads_common.stackCanary);
+
+		/* Frame would cross the thread stack base (canary) from above */
+		if ((sp > (ptr_t)t->ustack) && (low < base)) {
+			return -EFAULT;
+		}
+
+		/* Stack already overflowed in userspace - canary overwritten */
+		if ((threads_userRangeAccessible(proc, (ptr_t)t->ustack, base) != 0) &&
+				(hal_memcmp(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) != 0)) {
+			return -EFAULT;
+		}
+	}
+
+	if (threads_userRangeAccessible(proc, low, sp) == 0) {
+#ifdef NOMMU
+		return -EFAULT;
+#else
+		/* Unmapped / guard area is detected by threads_sigframePrefault() on the user return path */
+		return -EAGAIN;
+#endif
+	}
+
+	return 0;
+}
+
+
+/*
+ * Returns:
+ * 0       - signal delivered, signalCtx prepared,
+ * -EFAULT - signal frame couldn't be written, process crashed with SIGSEGV (as Linux force_sigsegv()),
+ * -1      - nothing delivered
+ * frameErr - result of threads_sigframePrefault() (0 if not called)
+ */
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src, int frameErr)
 {
 	unsigned int curSig;
 	int ret;
@@ -2031,6 +2141,16 @@ static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_co
 	ret = _threads_checkSignal(selected, proc);
 	if (ret > 0) {
 		curSig = (unsigned int)ret;
+		ret = (frameErr != 0) ? frameErr : _threads_sigframeCheck(selected, proc, (ptr_t)signalCtx + sizeof(*signalCtx));
+		if (ret == -EFAULT) {
+			_proc_crash(selected, SIGSEGV);
+			return -EFAULT;
+		}
+		if (ret != 0) {
+			/* Leave the signal pending */
+			return -1;
+		}
+
 		handler = proc->sigactions[curSig - 1U].sa_handler;
 		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sigtrampoline, handler, signalCtx, (int)curSig, oldmask, src) == 0) {
 			selected->sigpend &= ~(u32)(1UL << curSig);
@@ -2218,6 +2338,51 @@ void proc_resetExecSigactions(void)
 }
 
 
+/*
+ * Makes the signal frame area below user sp writable and resident (lazy / COW pages), so that it
+ * can be written from atomic context. Must be called from a context which can sleep.
+ * Returns -EFAULT if the area isn't writable user memory (stack overflow, guard page, invalid sp).
+ */
+static int threads_sigframePrefault(thread_t *thread, ptr_t sp)
+{
+#ifndef NOMMU
+	ptr_t low = sp - SIG_FRAME_MAX;
+	ptr_t page;
+
+	if ((low > sp) || (sp > (ptr_t)VADDR_USR_MAX)) {
+		return -EFAULT;
+	}
+
+	/* vm_mapForce() may sleep, exception handlers can call us with interrupts disabled (as map_pageFault()) */
+	hal_cpuEnableInterrupts();
+
+	for (page = low & ~((ptr_t)SIZE_PAGE - 1U); page < sp; page += SIZE_PAGE) {
+		if (vm_mapForce(thread->process->mapp, (void *)page, PROT_READ | PROT_WRITE | PROT_USER) != 0) {
+			return -EFAULT;
+		}
+	}
+#else
+	(void)thread;
+	(void)sp;
+#endif
+
+	return 0;
+}
+
+
+/* Returns 1 if a signal which may need a signal frame is pending (unlocked hint) */
+static int threads_sigframeNeeded(const thread_t *thread)
+{
+	const process_t *proc = thread->process;
+
+	if ((proc == NULL) || (proc->sigactions == NULL)) {
+		return 0;
+	}
+
+	return (((thread->sigpend | proc->sigpend) & ~thread->sigmask) != 0U) ? 1 : 0;
+}
+
+
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
@@ -2225,15 +2390,22 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	void *f;
 	void *kstackTop;
 	thread_t *thread;
+	int frameErr = 0, ret;
+
+	thread = proc_current();
+	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+
+	if (threads_sigframeNeeded(thread) != 0) {
+		frameErr = threads_sigframePrefault(thread, (ptr_t)hal_cpuGetUserSP(ctx));
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
 
 	kstackTop = thread->kstack + thread->kstacksz;
-	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
-	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+	ret = _threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL, frameErr);
+	if (ret == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		_threads_cpuTimeMode(thread, 0);
@@ -2243,6 +2415,12 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (ret == -EFAULT) {
+		/* Signal frame couldn't be written - process crashed, never return to its user code */
+		proc_threadEnd();
+		/* no return */
+	}
 }
 
 
@@ -2268,23 +2446,27 @@ int threads_sigsuspend(unsigned int mask)
 	cpu_context_t *ctx, *signalCtx;
 	void *kstackTop, *f;
 	unsigned int oldmask;
+	int frameErr;
 
-
-	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
-
-	/* setup syscall return value - sigsuspend always returns -EINTR */
+	thread = proc_current();
 	kstackTop = thread->kstack + thread->kstacksz;
 	ctx = kstackTop - sizeof(*ctx);
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+
+	/* sigsuspend waits for a signal - prepare the signal frame area while sleeping is allowed */
+	frameErr = threads_sigframePrefault(thread, (ptr_t)hal_cpuGetUserSP(ctx));
+
+	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	/* setup syscall return value - sigsuspend always returns -EINTR */
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
 	_threads_setSigmask(thread, mask);
 
 	/* check for pending signals before sleep - with the new mask */
-	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL, frameErr) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		_threads_cpuTimeMode(thread, 0);
@@ -2308,7 +2490,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL, frameErr) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		_threads_cpuTimeMode(thread, 0);
