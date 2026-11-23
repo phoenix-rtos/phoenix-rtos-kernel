@@ -1556,7 +1556,7 @@ static void process_vforkThread(void *arg)
 	current->execkstack = current->kstack;
 	current->execdata = spawn;
 
-	hal_memcpy(&current->process->tlsTemplate, &parent->process->tlsTemplate, sizeof(hal_tls_t));
+	hal_memcpy(&current->process->tlsTemplate, &parent->process->tlsTemplate, sizeof(current->process->tlsTemplate));
 	hal_memcpy(&current->tls, &parent->tls, sizeof(hal_tls_t));
 
 	ret = proc_resourcesCopy(parent->process);
