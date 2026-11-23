@@ -1,0 +1,38 @@
+vm/object.c
+  s_aefb43ae6c4ab5::t_e86776dce243a3 271,294,335-337
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 224-229,231-247,250-255,257-260,262,270,272-293,296-300,302-326,333-334
+  s_aefb43ae6c4ab5::t_0899699863c8c0 230,263-268,301,327-332
+  s_aefb43ae6c4ab5::t_8a13dbb0518041 248-249,256,261,269,295
+  s_03a5a2571f2f9f::t_f0b8270a2241b1 25-33,39,338,455-456
+vm/object.h
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 56-64
+  s_03a5a2571f2f9f::t_158c6a7105d573 54-55
+vm/map.c
+  s_aefb43ae6c4ab5::t_c1b24a892f0d8b 650-652,657-666
+  s_aefb43ae6c4ab5::t_6013423a8ad716 667-669
+  s_03a5a2571f2f9f::t_224c1b7bc9809b 571-581,631,649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac35c28163afe92d529799206bd11504831c3c4a",
+  "prompts": {},
+  "sessions": {
+    "s_03a5a2571f2f9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f07ec87-ac58-4a97-a86b-cb13c98f7bc4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    },
+    "s_aefb43ae6c4ab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47024dd1-9607-45d7-a8d8-bac9bdaa5945",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
