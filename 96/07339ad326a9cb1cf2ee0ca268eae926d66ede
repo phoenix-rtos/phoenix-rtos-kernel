@@ -1,0 +1,19 @@
+vm/object.c
+  s_03a5a2571f2f9f::t_4e82da8adb088b 187-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9607339ad326a9cb1cf2ee0ca268eae926d66ede",
+  "prompts": {},
+  "sessions": {
+    "s_03a5a2571f2f9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f07ec87-ac58-4a97-a86b-cb13c98f7bc4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
