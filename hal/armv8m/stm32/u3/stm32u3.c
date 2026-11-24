@@ -44,6 +44,14 @@
 #define USE_LSE_CLOCK_SOURCE 0
 #endif
 
+#if USE_LSE_CLOCK_SOURCE && !defined(LSE_DRIVE_VALUE)
+#define LSE_DRIVE_VALUE 0U
+#endif
+
+#if USE_LSE_CLOCK_SOURCE && (LSE_DRIVE_VALUE > 3U)
+#error LSE_DRIVE_VALUE out of range!
+#endif
+
 #if USE_LSE_CLOCK_SOURCE
 #define RCC_BDCR_RTCSEL_VAL  1U
 #define RCC_RTC_PREDIV_S_VAL (256UL - 1UL)
@@ -442,11 +450,9 @@ int _stm32_systickInit(u32 interval)
 static void _stm32_enableLsClock(void)
 {
 #if USE_LSE_CLOCK_SOURCE
-	u32 t = 0;
-
 	/* Enable LSE clock */
-	t = *(stm32_common.rcc + rcc_bdcr) & ~(0x3U << 3);          /* mask LSEDRV */
-	*(stm32_common.rcc + rcc_bdcr) = t | (3U << 3) | (1U << 0); /* LSEDRV -> high | LSEON */
+	u32 t = t = *(stm32_common.rcc + rcc_bdcr) & ~(0x3U << 3);               /* mask LSEDRV */
+	*(stm32_common.rcc + rcc_bdcr) = t | (LSE_DRIVE_VALUE << 3) | (1U << 0); /* LSEDRV | LSEON */
 	hal_cpuDataMemoryBarrier();
 	while ((*(stm32_common.rcc + rcc_bdcr) & (1U << 1)) == 0U) {
 		/* Wait for LSERDY */
