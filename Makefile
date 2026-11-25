@@ -50,6 +50,9 @@ endif
 CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DVERSION_TAGGED=\"$(VERSION_TAGGED)\" -DVERSION_BUILD=\"$(VERSION_BUILD)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
+# Add aliases to standard C library functions as required by GCC
+LDFLAGS += -Wl,--defsym=memcpy=hal_memcpy,--defsym=memcmp=hal_memcmp,--defsym=memset=hal_memset
+
 # uncomment to enable stack canary checking
 # CPPFLAGS += -DSTACK_CANARY
 
