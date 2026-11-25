@@ -5,64 +5,42 @@
  *
  * System timer driver
  *
- * Copyright 2021, 2023 Phoenix Systems
- * Author: Hubert Buczynski, Aleksander Kaminski
+ * Copyright 2021, 2023, 2026 Phoenix Systems
+ * Author: Hubert Buczynski, Aleksander Kaminski, Wladyslaw Mlynik
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/aarch64/aarch64.h"
 #include "hal/aarch64/interrupts_gicv2.h"
+#include "hal/cpu.h"
 #include "hal/timer.h"
-#include "hal/spinlock.h"
 #include "hal/string.h"
 
-#include "hal/aarch64/arch/pmap.h"
-#include "zynqmp.h"
 #include "config.h"
 
 
-#define TTC0_BASE_ADDR       ((addr_t)0x00ff110000U)
-#define TIMER_SRC_CLK_CPU_1x 99990000U
-
 static struct {
-	volatile u32 *ttc;
 	intr_handler_t handler;
-	volatile time_t jiffies;
+	intr_handler_t initHandler;
+	u64 nextDeadline[NUM_CPUS];
 
+	u64 freq;
 	u32 ticksPerFreq;
-	spinlock_t sp;
 } timer_common;
-
-
-/* clang-format off */
-enum {
-	clk_ctrl = 0, clk_ctrl2, clk_ctrl3, cnt_ctrl, cnt_ctrl2, cnt_ctrl3, cnt_value, cnt_value2, cnt_value3, interval_val, interval_cnt2, interval_cnt3,
-	match0, match1_cnt2, match1_cnt3, match1, match2_cnt2, match2_cnt3, match2, match3_cnt2, match3_cnt3, isr, irq_reg2, irq_reg3, ier, irq_en2,
-	irq_en3, ev_ctrl_t1, ev_ctrl_t2, ev_ctrl_t3, ev_reg1, ev_reg2, ev_reg3
-};
-/* clang-format on */
 
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
+	unsigned int cpuID = hal_cpuGetID();
+
 	(void)n;
 	(void)arg;
 	(void)ctx;
 
-	spinlock_ctx_t sc;
-	hal_spinlockSet(&timer_common.sp, &sc);
-	/* Interval IRQ */
-	if ((*(timer_common.ttc + isr) & 1U) != 0U) {
-		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
-	}
-
-	hal_spinlockClear(&timer_common.sp, &sc);
-
-	u32 nextID = hal_cpuGetID() + 1U;
-	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1U : ((u32)1U << nextID);
-	interrupts_setCPU(n, nextTargetCPU);
-	hal_cpuDataSyncBarrier();
+	timer_common.nextDeadline[cpuID] += (u64)timer_common.ticksPerFreq * (u64)hal_cpuGetCount();
+	sysreg_write(cntp_cval_el0, timer_common.nextDeadline[cpuID]);
+	hal_cpuInstrBarrier();
 
 	return 0;
 }
@@ -70,32 +48,17 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2us(time_t cyc)
 {
-	return (cyc * 1000LL) / ((time_t)timer_common.ticksPerFreq * (time_t)hal_cpuGetCount());
+	time_t freq = (time_t)timer_common.freq;
+
+	return ((cyc / freq) * 1000000LL) + (((cyc % freq) * 1000000LL) / freq);
 }
 
 
 static time_t hal_timerGetCyc(void)
 {
-	spinlock_ctx_t sc;
-	time_t jiffies, cnt;
+	hal_cpuInstrBarrier();
 
-	hal_spinlockSet(&timer_common.sp, &sc);
-	cnt = (time_t)(*(timer_common.ttc + cnt_value));
-	jiffies = timer_common.jiffies;
-
-	/* Check if there's pending jiffies increment */
-	if ((*(timer_common.ttc + isr) & 1U) != 0U) {
-		/* ISR register is clear on read, we have to update jiffies now */
-		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
-
-		/* Timer might've just wrapped-around,
-		 * take counter value again */
-		jiffies = timer_common.jiffies;
-		cnt = (time_t)(*(timer_common.ttc + cnt_value));
-	}
-	hal_spinlockClear(&timer_common.sp, &sc);
-
-	return jiffies + cnt;
+	return (time_t)sysreg_read(cntpct_el0);
 }
 
 
@@ -122,73 +85,59 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-static void hal_timerSetPrescaler(u32 freq)
-{
-	u32 ticks = TIMER_SRC_CLK_CPU_1x / freq;
-	u32 prescaler = 0;
-
-	while ((ticks >= 0xffffU) && (prescaler < 0x10U)) {
-		prescaler++;
-		ticks /= 2U;
-	}
-
-	if (prescaler != 0U) {
-		/* Enable and set prescaler */
-		prescaler--;
-		*(timer_common.ttc + clk_ctrl) = (*(timer_common.ttc + clk_ctrl) & ~0x1fU) | (prescaler << 1);
-		*(timer_common.ttc + clk_ctrl) |= 0x1U;
-	}
-
-	timer_common.ticksPerFreq = ticks;
-}
-
-
 char *hal_timerFeatures(char *features, size_t len)
 {
-	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
+	(void)hal_strncpy(features, "Using ARM Generic Timer", len);
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 	return features;
 }
 
 
+static int _timer_initIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
+{
+	unsigned int cpuID = hal_cpuGetID();
+	u64 period = (u64)timer_common.ticksPerFreq * (u64)hal_cpuGetCount();
+	u64 now = (u64)hal_timerGetCyc();
+	u64 deadline = now - (now % period) + ((u64)cpuID * (u64)timer_common.ticksPerFreq);
+
+	(void)n;
+	(void)arg;
+	(void)ctx;
+
+	/* Each core gets its own slot within the period */
+	if (deadline <= now) {
+		deadline += period;
+	}
+	timer_common.nextDeadline[cpuID] = deadline;
+
+	/* Set deadline and enable timer */
+	sysreg_write(cntp_cval_el0, deadline);
+	sysreg_write(cntp_ctl_el0, 1UL);
+	hal_cpuInstrBarrier();
+
+	/* PPI has to be enabled on each core separately */
+	interrupts_enableIRQ(TIMER_IRQ_ID);
+
+	return 0;
+}
+
+
 void _hal_timerInit(u32 interval)
 {
-	timer_common.ttc = _pmap_halMapDevice(TTC0_BASE_ADDR, 0, SIZE_PAGE);
-	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
-	timer_common.jiffies = 0;
+	timer_common.freq = sysreg_read(cntfrq_el0);
+	timer_common.ticksPerFreq = (u32)(timer_common.freq / ((u64)interval * (u64)hal_cpuGetCount()));
 
-	/* Disable timer */
-	*(timer_common.ttc + clk_ctrl) = 0;
-
-	/* Reset count control register */
-	*(timer_common.ttc + cnt_ctrl) = 0x00000021;
-
-	/* Reset registers */
-	*(timer_common.ttc + interval_val) = 0;
-	*(timer_common.ttc + interval_cnt2) = 0;
-	*(timer_common.ttc + interval_cnt3) = 0;
-	*(timer_common.ttc + match0) = 0;
-	*(timer_common.ttc + match1_cnt2) = 0;
-	*(timer_common.ttc + match2_cnt3) = 0;
-	*(timer_common.ttc + ier) = 0;
-	*(timer_common.ttc + isr) = 0x1f;
-
-	/* Reset counters and restart counting */
-	*(timer_common.ttc + cnt_ctrl) = 0x10;
-
-	hal_timerSetPrescaler(interval * hal_cpuGetCount());
-
-	hal_spinlockCreate(&timer_common.sp, "timer");
 	timer_common.handler.f = _timer_irqHandler;
 	timer_common.handler.n = TIMER_IRQ_ID;
 	timer_common.handler.data = NULL;
 	(void)hal_interruptsSetHandler(&timer_common.handler);
 
-	*(timer_common.ttc + interval_val) |= timer_common.ticksPerFreq & 0xffffU;
+	timer_common.initHandler.f = _timer_initIrqHandler;
+	timer_common.initHandler.n = TIMER_INIT_IRQ_ID;
+	timer_common.initHandler.data = NULL;
+	(void)hal_interruptsSetHandler(&timer_common.initHandler);
 
-	/* Reset counter */
-	*(timer_common.ttc + cnt_ctrl) = 0x2;
-	/* Enable interval irq timer */
-	*(timer_common.ttc + ier) = 0x1;
+	/* Start timer on all cores, each core handles it once its interrupts are enabled */
+	hal_cpuSendSGI(SGI_FLT_USE_LIST, (u8)((1U << hal_cpuGetCount()) - 1U), (u8)TIMER_INIT_IRQ_ID);
 }

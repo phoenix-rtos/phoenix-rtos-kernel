@@ -32,10 +32,6 @@
 
 #define SPI_FIRST_IRQID 32
 
-#define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
-#define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
-#define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
-
 #define DEFAULT_CPU_MASK ((1U << NUM_CPUS) - 1U)
 #define DEFAULT_PRIORITY 0x80
 
@@ -154,7 +150,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 }
 
 
-static void interrupts_enableIRQ(unsigned int irqn)
+void interrupts_enableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32U;
 	unsigned int irq_offs = irqn % 32U;
@@ -327,7 +323,7 @@ void _hal_interruptsInitPerCPU(void)
 }
 
 
-static void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
+void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
 {
 	*(interrupts_common.gicd + gicd_sgir) = ((u32)(targetFilter & 0x3UL) << 24) | ((u32)targetList << 16) | ((u32)intID & 0xfU);
 	hal_cpuDataSyncBarrier();
