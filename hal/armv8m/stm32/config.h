@@ -18,6 +18,8 @@
 #include "n6/config.h"
 #elif defined(__CPU_STM32U3)
 #include "u3/config.h"
+#elif defined(__CPU_STM32H5)
+#include "h5/config.h"
 #else
 #error "Unsupported platform"
 #endif
