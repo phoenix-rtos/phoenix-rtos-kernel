@@ -75,6 +75,14 @@ OBJS := $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
+# SBOM metadata fragment
+NAME := phoenix-rtos-kernel
+SBOM_TYPE := kernel
+SBOM_ARTIFACTS := $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
+SBOM_MAKEFILE_PATH := $(CURDIR)/Makefile
+include $(MAKES_PATH)/generate-sbom.mk
+all: $(SBOM_FRAG)
+
 ifneq ($(TARGET_FAMILY),host)
   include hal/Makefile
 endif
