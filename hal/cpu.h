@@ -117,6 +117,11 @@ int hal_cpuSupervisorMode(cpu_context_t *ctx);
 int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(int signo), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src);
 
 
+/*
+ * Restores thread state saved by hal_cpuPushSignal. *ctx points to the untrusted signal context
+ * in userspace - only userspace state is taken from it (each field read once, privileged bits
+ * validated) into the kernel stack context of the current syscall, *ctx is set to it.
+ */
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 

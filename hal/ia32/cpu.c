@@ -195,11 +195,29 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 }
 
 
+/* EFLAGS bits userspace may set: CF, PF, AF, ZF, SF, TF, DF, OF, AC, ID */
+#define EFLAGS_USER_MASK 0x00240dd5U
+
+
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
-	(void)kstack;
-	GETFROMSTACK(ustack, u32, (*ctx)->eip, 2U);
-	GETFROMSTACK(ustack, u32, (*ctx)->esp, 3U);
+	/* Restore to the kernel-owned syscall context - savesp, segment selectors, cr0Bits are kept from the syscall entry */
+	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const cpu_context_t *uCtx = *ctx;
+	u32 eflags;
+
+	/* Signal context on the user stack can't be trusted - take only userspace state from it, once */
+	GETFROMSTACK(ustack, u32, kCtx->eip, 2U);
+	GETFROMSTACK(ustack, u32, kCtx->esp, 3U);
+
+	hal_memcpy(&kCtx->edi, &uCtx->edi, 7U * sizeof(u32)); /* edi, esi, ebp, edx, ecx, ebx, eax */
+	hal_memcpy(&kCtx->fpuContext, &uCtx->fpuContext, sizeof(kCtx->fpuContext));
+
+	/* IF, IOPL, NT, VM, ... are kept from the syscall entry */
+	eflags = uCtx->eflags;
+	kCtx->eflags = (kCtx->eflags & ~EFLAGS_USER_MASK) | (eflags & EFLAGS_USER_MASK);
+
+	*ctx = kCtx;
 }
 
 

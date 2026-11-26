@@ -185,13 +185,28 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
-	(void)kstack;
-	GETFROMSTACK(ustack, u32, (*ctx)->pc, 2);
-	GETFROMSTACK(ustack, u32, (*ctx)->npc, 3);
-	GETFROMSTACK(ustack, u32, (*ctx)->sp, 4);
-	GETFROMSTACK(ustack, u32, (*ctx)->psr, 5);
-	(*ctx)->psr &= ~PSR_PS;
-	(*ctx)->psr |= PSR_ET;
+	/* Restore to the kernel-owned syscall context - savesp is kept from the syscall entry */
+	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const cpu_context_t *uCtx = *ctx;
+	u32 pc, npc, psr;
+
+	/* Signal context on the user stack can't be trusted - take only userspace state from it, once */
+	GETFROMSTACK(ustack, u32, pc, 2);
+	GETFROMSTACK(ustack, u32, npc, 3);
+	GETFROMSTACK(ustack, u32, kCtx->sp, 4);
+	GETFROMSTACK(ustack, u32, psr, 5);
+	/* rett to a misaligned address with traps disabled puts the CPU in error mode */
+	kCtx->pc = pc & ~3U;
+	kCtx->npc = npc & ~3U;
+	/* S, PS, ET, PIL, EF, CWP are kept from the syscall entry */
+	kCtx->psr = (kCtx->psr & ~PSR_ICC) | (psr & PSR_ICC);
+
+	kCtx->y = uCtx->y;
+	hal_memcpy(&kCtx->g1, &uCtx->g1, 13U * sizeof(u32)); /* g1-g7, o0-o5 */
+	kCtx->o7 = uCtx->o7;
+	hal_memcpy(&kCtx->fpCtx, &uCtx->fpCtx, sizeof(kCtx->fpCtx));
+
+	*ctx = kCtx;
 }
 
 

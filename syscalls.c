@@ -1369,6 +1369,13 @@ void syscalls_sigreturn(u8 *ustack)
 	GETFROMSTACK(ustack, cpu_context_t *, ctx, 1U);
 	/* NOTE: `hal_cpuSigreturn` may take additional arguments from ustack */
 
+	if (vm_mapBelongs(t->process, ctx, sizeof(*ctx)) < 0) {
+		/* Thread can't be restored - ended on return from the syscall */
+		proc_kill(t->process);
+		return;
+	}
+
+	/* `hal_cpuSigreturn` restores from the kernel stack, ctx is read only once */
 	hal_cpuDisableInterrupts();
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
 

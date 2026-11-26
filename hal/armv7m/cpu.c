@@ -193,14 +193,30 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
+	/* Restore to the kernel-owned syscall context - savesp, fpuctx, msp are kept from the syscall entry */
 	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const cpu_context_t *uCtx = *ctx;
+	u32 psr;
 
-	GETFROMSTACK(ustack, u32, (*ctx)->hwctx.pc, 2);
-	GETFROMSTACK(ustack, u32, (*ctx)->psp, 3);
-	GETFROMSTACK(ustack, u32, (*ctx)->hwctx.psr, 4);
-	(*ctx)->irq_ret = RET_THREAD_PSP;
+	/* Signal context on the user stack can't be trusted - take only userspace state from it, once */
+	GETFROMSTACK(ustack, u32, kCtx->hwctx.pc, 2);
+	GETFROMSTACK(ustack, u32, kCtx->psp, 3);
+	GETFROMSTACK(ustack, u32, psr, 4);
+	/* Returning to thread mode - IPSR must be 0 */
+	kCtx->hwctx.psr = psr & ~0x1ffU;
 
-	hal_memcpy(kCtx, *ctx, sizeof(cpu_context_t));
+	hal_memcpy(&kCtx->r4, &uCtx->r4, 8U * sizeof(u32)); /* r4-r11 */
+	kCtx->hwctx.r0 = uCtx->hwctx.r0;
+	kCtx->hwctx.r1 = uCtx->hwctx.r1;
+	kCtx->hwctx.r2 = uCtx->hwctx.r2;
+	kCtx->hwctx.r3 = uCtx->hwctx.r3;
+	kCtx->hwctx.r12 = uCtx->hwctx.r12;
+	kCtx->hwctx.lr = uCtx->hwctx.lr;
+#ifdef CPU_IMXRT
+	hal_memcpy(&kCtx->s16, &uCtx->s16, 16U * sizeof(u32));      /* s16-s31 */
+	hal_memcpy(&kCtx->s0, &uCtx->s0, (16U + 1U) * sizeof(u32)); /* s0-s15, fpscr */
+#endif
+	kCtx->irq_ret = RET_THREAD_PSP;
 
 	*ctx = kCtx;
 }

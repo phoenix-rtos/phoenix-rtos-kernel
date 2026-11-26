@@ -108,12 +108,32 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 }
 
 
+/* SPSR bits userspace may set: N, Z, C, V */
+#define PSR_USER_MASK 0xf0000000UL
+
+
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
-	(void)kstack;
-	GETFROMSTACK(ustack, u64, (*ctx)->pc, 2);
-	GETFROMSTACK(ustack, u64, (*ctx)->sp, 3);
-	GETFROMSTACK(ustack, u64, (*ctx)->psr, 4);
+	/* Restore to the kernel-owned syscall context - savesp, cpacr are kept from the syscall entry */
+	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const cpu_context_t *uCtx = *ctx;
+	u64 psr;
+
+	/* Signal context on the user stack can't be trusted - take only userspace state from it, once */
+	GETFROMSTACK(ustack, u64, kCtx->pc, 2);
+	GETFROMSTACK(ustack, u64, kCtx->sp, 3);
+	GETFROMSTACK(ustack, u64, psr, 4);
+	/* Mode, execution state and exception masks are kept from the syscall entry */
+	kCtx->psr = (kCtx->psr & ~PSR_USER_MASK) | (psr & PSR_USER_MASK);
+
+#ifndef __SOFTFP__
+	kCtx->fpcr = uCtx->fpcr;
+	kCtx->fpsr = uCtx->fpsr;
+	hal_memcpy(kCtx->freg, uCtx->freg, sizeof(kCtx->freg));
+#endif
+	hal_memcpy(kCtx->x, uCtx->x, sizeof(kCtx->x));
+
+	*ctx = kCtx;
 }
 
 

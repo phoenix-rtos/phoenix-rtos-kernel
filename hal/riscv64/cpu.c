@@ -224,9 +224,19 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
-	(void)kstack;
-	GETFROMSTACK(ustack, u64, (*ctx)->sepc, 2);
-	GETFROMSTACK(ustack, u64, (*ctx)->sp, 3);
+	/* Restore to the kernel-owned syscall context - ksp, sstatus, stval, scause, sscratch are kept from the syscall entry */
+	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const cpu_context_t *uCtx = *ctx;
+
+	/* Signal context on the user stack can't be trusted - take only userspace state from it, once */
+	GETFROMSTACK(ustack, u64, kCtx->sepc, 2);
+	GETFROMSTACK(ustack, u64, kCtx->sp, 3);
+
+	hal_memcpy(&kCtx->ra, &uCtx->ra, 29U * sizeof(u64)); /* ra, gp, t0-t6, s0-s11, a0-a7 */
+	kCtx->tp = uCtx->tp;
+	hal_memcpy(&kCtx->fpCtx, &uCtx->fpCtx, sizeof(kCtx->fpCtx));
+
+	*ctx = kCtx;
 }
 
 
