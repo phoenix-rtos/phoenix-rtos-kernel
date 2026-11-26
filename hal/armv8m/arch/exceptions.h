@@ -22,6 +22,8 @@
 
 #define SIZE_CTXDUMP 524U /* Size of dumped context */
 
+#define HAL_CPU_GETUSERCTX_CUSTOM 1
+
 
 typedef struct _exc_context_t {
 	/* Saved by ISR */
