@@ -15,6 +15,7 @@
 #ifndef _PH_HAL_IA32_CPU_H_
 #define _PH_HAL_IA32_CPU_H_
 
+#include "include/arch/ia32/context.h"
 #include "include/page.h"
 #include "hal/types.h"
 
@@ -198,40 +199,6 @@
 
 
 #pragma pack(push, 1)
-
-typedef struct {
-	u16 controlWord, _controlWord;
-	u16 statusWord, _statusWord;
-	u16 tagWord, _tagWord;
-	u32 fip;
-	u32 fips;
-	u32 fdp;
-	u16 fds, _fds;
-	ld80 fpuContext[8];
-} fpu_context_t;
-
-/* CPU context saved by interrupt handlers on thread kernel stack */
-typedef struct _cpu_context_t {
-	u32 savesp;
-	u32 edi;
-	u32 esi;
-	u32 ebp;
-	u32 edx;
-	u32 ecx;
-	u32 ebx;
-	u32 eax;
-	u16 gs;
-	u16 fs;
-	u16 es;
-	u16 ds;
-	fpu_context_t fpuContext;
-	u32 cr0Bits;
-	u32 eip; /* eip, cs, eflags, esp, ss saved by CPU on interrupt */
-	u32 cs;
-	u32 eflags;
-	u32 esp;
-	u32 ss;
-} cpu_context_t;
 
 
 /* IA32 TSS */

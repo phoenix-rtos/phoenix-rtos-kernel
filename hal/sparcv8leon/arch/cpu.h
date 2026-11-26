@@ -14,6 +14,7 @@
 #ifndef _PH_HAL_LEON3_CPU_H_
 #define _PH_HAL_LEON3_CPU_H_
 
+#include "include/arch/sparcv8leon/context.h"
 #include "include/page.h"
 
 #define SIZE_PAGE _PAGE_SIZE
@@ -169,99 +170,6 @@
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7*/
-
-
-typedef struct {
-	u32 f0;
-	u32 f1;
-	u32 f2;
-	u32 f3;
-	u32 f4;
-	u32 f5;
-	u32 f6;
-	u32 f7;
-	u32 f8;
-	u32 f9;
-	u32 f10;
-	u32 f11;
-	u32 f12;
-	u32 f13;
-	u32 f14;
-	u32 f15;
-	u32 f16;
-	u32 f17;
-	u32 f18;
-	u32 f19;
-	u32 f20;
-	u32 f21;
-	u32 f22;
-	u32 f23;
-	u32 f24;
-	u32 f25;
-	u32 f26;
-	u32 f27;
-	u32 f28;
-	u32 f29;
-	u32 f30;
-	u32 f31;
-
-	u32 fsr;
-	u32 pad;
-} cpu_fpContext_t;
-
-
-typedef struct {
-	/* local */
-	u32 l0;
-	u32 l1;
-	u32 l2;
-	u32 l3;
-	u32 l4;
-	u32 l5;
-	u32 l6;
-	u32 l7;
-
-	/* in */
-	u32 i0;
-	u32 i1;
-	u32 i2;
-	u32 i3;
-	u32 i4;
-	u32 i5;
-	u32 fp;
-	u32 i7;
-} cpu_winContext_t;
-
-
-typedef struct _cpu_context_t {
-	u32 savesp;
-
-	u32 y;
-	u32 psr;
-	u32 pc;
-	u32 npc;
-
-	/* global */
-	u32 g1;
-	u32 g2;
-	u32 g3;
-	u32 g4;
-	u32 g5;
-	u32 g6;
-	u32 g7;
-
-	/* out */
-	u32 o0;
-	u32 o1;
-	u32 o2;
-	u32 o3;
-	u32 o4;
-	u32 o5;
-	u32 sp;
-	u32 o7;
-
-	cpu_fpContext_t fpCtx;
-} cpu_context_t;
 
 
 /* performance */

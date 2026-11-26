@@ -24,6 +24,7 @@
 #endif
 
 #include "hal/types.h"
+#include "include/arch/armv7m/context.h"
 #include "include/page.h"
 
 #define SIZE_PAGE _PAGE_SIZE
@@ -75,84 +76,6 @@
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7*/
-
-
-typedef struct {
-	u32 r0;
-	u32 r1;
-	u32 r2;
-	u32 r3;
-	u32 r12;
-	u32 lr;
-	u32 pc;
-	u32 psr;
-} cpu_hwContext_t;
-
-
-typedef struct _cpu_context_t {
-	u32 savesp;
-	u32 fpuctx;
-
-	/* Saved by ISR */
-	u32 psp;
-	u32 r4;
-	u32 r5;
-	u32 r6;
-	u32 r7;
-	u32 r8;
-	u32 r9;
-	u32 r10;
-	u32 r11;
-	u32 irq_ret;
-
-	u32 msp;
-	u32 pad0;
-
-#ifdef CPU_IMXRT
-	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s16 is a signed 16-bit typedef and also a register field identifier" */
-	u32 s16;
-	u32 s17;
-	u32 s18;
-	u32 s19;
-	u32 s20;
-	u32 s21;
-	u32 s22;
-	u32 s23;
-	u32 s24;
-	u32 s25;
-	u32 s26;
-	u32 s27;
-	u32 s28;
-	u32 s29;
-	u32 s30;
-	u32 s31;
-#endif
-
-	/* Saved by hardware */
-	cpu_hwContext_t hwctx;
-
-#ifdef CPU_IMXRT
-	u32 s0;
-	u32 s1;
-	u32 s2;
-	u32 s3;
-	u32 s4;
-	u32 s5;
-	u32 s6;
-	u32 s7;
-	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a register field identifier" */
-	u32 s8;
-	u32 s9;
-	u32 s10;
-	u32 s11;
-	u32 s12;
-	u32 s13;
-	u32 s14;
-	u32 s15;
-	u32 fpscr;
-	u32 pad1;
-#endif
-} cpu_context_t;
 
 
 static inline void hal_cpuDisableInterrupts(void)

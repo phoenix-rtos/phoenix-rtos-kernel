@@ -55,6 +55,7 @@
 
 #ifndef __ASSEMBLY__
 
+#include "include/arch/armv8r/context.h"
 #include "hal/types.h"
 
 
@@ -72,36 +73,6 @@
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7*/
-
-typedef struct _cpu_context_t {
-	u32 savesp;
-	u32 padding;
-
-	/* FPU context */
-	u32 fpsr;
-	u32 freg[32 * 2];
-
-	u32 psr;
-
-	u32 r0;
-	u32 r1;
-	u32 r2;
-	u32 r3;
-	u32 r4;
-	u32 r5;
-	u32 r6;
-	u32 r7;
-	u32 r8;
-	u32 r9;
-	u32 r10;
-
-	u32 fp;
-	u32 ip;
-	u32 sp;
-	u32 lr;
-
-	u32 pc;
-} cpu_context_t;
 
 
 static inline void hal_cpuDisableInterrupts(void)

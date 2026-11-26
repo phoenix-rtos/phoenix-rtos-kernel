@@ -17,10 +17,16 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 /* clang-format off */
 #define EXCEPTION_PREFIX "\033" "[0m" "\nException: 0x"
 /* clang-format on */
+
+
+static struct {
+	excHandlerFn_t defaultHandler;
+} exceptions_common;
 
 
 static const char *const hal_exceptionsType(unsigned int n)
@@ -126,8 +132,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
-void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
+__attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
 
@@ -143,6 +148,22 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 #endif
+}
+
+
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
+void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
+{
+	void *interrupted = proc_cpuTimeIntrEnter(&ctx->cpuCtx);
+
+	exceptions_common.defaultHandler(n, ctx);
+
+	/* Handle signals if necessary */
+	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
+		threads_setupUserReturn((void *)ctx->cpuCtx.o0, &ctx->cpuCtx);
+	}
+
+	proc_cpuTimeIntrLeave(interrupted);
 }
 
 
@@ -166,9 +187,14 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
+	if (n == EXC_DEFAULT) {
+		exceptions_common.defaultHandler = handler;
+	}
+
 	return 0;
 }
 
 void _hal_exceptionsInit(void)
 {
+	exceptions_common.defaultHandler = exceptions_defaultHandler;
 }

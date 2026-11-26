@@ -26,6 +26,7 @@
 #include "include/utsname.h"
 #include "include/time.h"
 #include "include/perf.h"
+#include "coredump/coredump.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -2231,6 +2232,82 @@ int syscalls_sys_uname(u8 *ustack)
 	}
 
 	return posix_uname(name);
+}
+
+
+/*
+ * Coredump
+ */
+
+
+int syscalls_coredumpWait(u8 *ustack)
+{
+	coredump_general_t *info;
+
+	GETFROMSTACK(ustack, coredump_general_t *, info, 0U);
+
+#ifdef COREDUMP_SUPPORT
+	return coredump_wait(info);
+#else
+	(void)info;
+	return -ENOSYS;
+#endif
+}
+
+
+int syscalls_coredumpInfo(u8 *ustack)
+{
+	int type, tid;
+	void *buf;
+	size_t size;
+
+	GETFROMSTACK(ustack, int, type, 0U);
+	GETFROMSTACK(ustack, int, tid, 1U);
+	GETFROMSTACK(ustack, void *, buf, 2U);
+	GETFROMSTACK(ustack, size_t, size, 3U);
+
+#ifdef COREDUMP_SUPPORT
+	return coredump_info(type, tid, buf, size);
+#else
+	(void)type;
+	(void)tid;
+	(void)buf;
+	(void)size;
+	return -ENOSYS;
+#endif
+}
+
+
+int syscalls_coredumpMap(u8 *ustack)
+{
+	const void *addr;
+	size_t len;
+	const void **ptr;
+
+	GETFROMSTACK(ustack, const void *, addr, 0U);
+	GETFROMSTACK(ustack, size_t, len, 1U);
+	GETFROMSTACK(ustack, const void **, ptr, 2U);
+
+#ifdef COREDUMP_SUPPORT
+	return coredump_map(addr, len, ptr);
+#else
+	(void)addr;
+	(void)len;
+	(void)ptr;
+	return -ENOSYS;
+#endif
+}
+
+
+int syscalls_coredumpDone(u8 *ustack)
+{
+	(void)ustack;
+
+#ifdef COREDUMP_SUPPORT
+	return coredump_done();
+#else
+	return -ENOSYS;
+#endif
 }
 
 

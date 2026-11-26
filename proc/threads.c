@@ -348,14 +348,16 @@ static void thread_destroy(thread_t *thread)
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
 
-	if (thread->execdata != NULL) {
-		thread->kstack = thread->execkstack;
-		proc_vforkedDied(thread, FORKED);
-	}
-	vm_kfree(thread->kstack);
-
 	process = thread->process;
 	if (process != NULL) {
+		if (process->coredump == 0U) {
+			if (thread->execdata != NULL) {
+				thread->kstack = thread->execkstack;
+				proc_vforkedDied(thread, FORKED);
+			}
+			vm_kfree(thread->kstack);
+			thread->kstack = NULL;
+		}
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		_threads_cpuTimeToProcess(thread);
@@ -368,6 +370,7 @@ static void thread_destroy(thread_t *thread)
 		(void)proc_put(process);
 	}
 	else {
+		vm_kfree(thread->kstack);
 		vm_kfree(thread);
 	}
 }
@@ -885,6 +888,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->refs = 1;
 	t->interruptible = 0;
 	t->exit = 0;
+	t->crashed = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
@@ -1121,7 +1125,6 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
 	_threads_cpuTimeCharge(t, hal_timerGetUs());
-	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	(void)_proc_threadWakeup(&threads_common.reaper);
@@ -1202,6 +1205,38 @@ void proc_kill(process_t *proc)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_proc_threadsDestroy(&proc->threads, NULL);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+/* Terminates the process because of sig caused by thread, process will be dumped by coredump */
+static void _proc_crash(thread_t *thread, int sig)
+{
+	process_t *process;
+	if (thread == NULL) {
+		return;
+	}
+	process = thread->process;
+	if ((process == NULL) || (process->coredump != 0U)) {
+		/* Keep the first crash reason if already crashed */
+		return;
+	}
+
+	/* Crash reason, also reported to the parent as a termination signal */
+	process->exit = sig * (int)(1UL << 8U);
+	thread->crashed = 1;
+	process->coredump = 1;
+
+	_proc_threadsDestroy(&process->threads, NULL);
+}
+
+
+void proc_crash(thread_t *thread, int sig)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_proc_crash(thread, sig);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -1620,8 +1655,15 @@ int proc_join(int tid, time_t timeout)
 	}
 
 	if (ghost != NULL) {
-		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 		id = proc_getTid(ghost);
+
+		if (ghost->kstack != NULL) {
+			/* kstack kept for coredumping, keep the ghost till process_destroy */
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return err < 0 ? err : id;
+		}
+
+		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1738,29 +1780,35 @@ static void _threads_sigdiscard(process_t *process, int sig)
 static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
 {
 	switch (sig) {
-		case SIGHUP:
-		case SIGINT:
-		case SIGQUIT:
-		case SIGILL:
-		case SIGTRAP:
 		case SIGABRT: /* And SIGIOT */
-		case SIGEMT:
-		case SIGFPE:
 		case SIGBUS:
+		case SIGFPE:
+		case SIGILL:
+		case SIGQUIT:
 		case SIGSEGV:
 		case SIGSYS:
+		case SIGTRAP:
+		case SIGXCPU:
+		case SIGXFSZ:
+			_proc_crash((thread == NULL) ? process->threads : thread, sig);
+			return SIGNAL_TERMINATE;
+
+		case SIGHUP:
+		case SIGINT:
+		case SIGEMT:
 		case SIGPIPE:
 		case SIGALRM:
 		case SIGTERM:
 		case SIGIO:
-		case SIGXCPU:
-		case SIGXFSZ:
 		case SIGVTALRM:
 		case SIGPROF:
 		case SIGUSR1:
 		case SIGUSR2:
 		case SIGKILL:
-			process->exit = sig * (int)(1UL << 8U);
+			/* Keep the crash reason if already crashed */
+			if (process->coredump == 0U) {
+				process->exit = sig * (int)(1UL << 8U);
+			}
 			_proc_threadsDestroy(&process->threads, NULL);
 			return SIGNAL_TERMINATE;
 
@@ -1820,6 +1868,11 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		return EOK;
 	}
 
+	/*
+	 * TODO: synchronous faults (SIGSEGV/SIGILL/SIGBUS/SIGFPE posted by exception handlers) which are
+	 * ignored or blocked here, return to the faulting instruction and fault again forever (no coredump).
+	 * The default action should be forced for them (as Linux force_sig_fault() does).
+	 */
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
 	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1855,9 +1908,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	if ((sigbit & ~thread->sigmask) != 0U) {
 		if ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
-			performedAction = _threads_sigdefault(process, thread, sig);
 			thread->sigpend &= ~sigbit;
 			process->sigpend &= ~sigbit;
+			performedAction = _threads_sigdefault(process, thread, sig);
 		}
 
 		if ((performedAction != SIGNAL_IGNORE) && (thread->interruptible != 0U)) {

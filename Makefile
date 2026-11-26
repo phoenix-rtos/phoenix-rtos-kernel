@@ -58,6 +58,11 @@ ifeq ($(CPUTIME_SPLIT),y)
   CPPFLAGS += -DCPUTIME_SPLIT_ENABLE
 endif
 
+COREDUMP_SUPPORT ?= n
+ifeq ($(COREDUMP_SUPPORT),y)
+	CPPFLAGS += -DCOREDUMP_SUPPORT
+endif
+
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
@@ -86,6 +91,7 @@ include lib/Makefile
 include test/Makefile
 include log/Makefile
 include perf/Makefile
+include coredump/Makefile
 
 # incremental build quick-fix, WARN: assuming the sources are in c
 DEPS := $(patsubst %.o, %.c.d, $(OBJS))

@@ -77,6 +77,7 @@ typedef struct _thread_t {
 	unsigned int exit : 2;
 	unsigned int interruptible : 1;
 	unsigned int inKernel : 1;
+	unsigned int crashed : 1; /* this thread caused the crash of its process (dumped by coredump) */
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -155,6 +156,9 @@ void proc_threadsIter(unsigned int flags, proc_threadsListFn_t cb, void *arg);
 
 
 int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info);
+
+
+void proc_crash(thread_t *thread, int sig);
 
 
 int proc_threadsOther(thread_t *t);

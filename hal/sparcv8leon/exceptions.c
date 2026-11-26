@@ -24,7 +24,6 @@
 static struct {
 	excHandlerFn_t defaultHandler;
 	excHandlerFn_t mmuFaultHandler;
-	spinlock_t lock;
 } exceptions_common;
 
 
@@ -214,8 +213,6 @@ int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 
 void _hal_exceptionsInit(void)
 {
-	hal_spinlockCreate(&exceptions_common.lock, "exceptions.lock");
-
 	exceptions_common.defaultHandler = exceptions_defaultHandler;
 	exceptions_common.mmuFaultHandler = exceptions_defaultHandler;
 }

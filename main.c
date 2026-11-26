@@ -14,6 +14,7 @@
 
 #include "hal/hal.h"
 
+#include "coredump/coredump.h"
 #include "usrv.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -120,6 +121,9 @@ int main(void)
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	(void)_perf_init(&main_common.kmap);
 	(void)_proc_init(&main_common.kmap, &main_common.kernel);
+#ifdef COREDUMP_SUPPORT
+	_coredump_init();
+#endif
 	_syscalls_init();
 
 #if 0

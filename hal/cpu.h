@@ -19,6 +19,7 @@
 
 #include <arch/cpu.h>
 #include "spinlock.h"
+#include "pmap.h"
 
 
 struct _hal_tls_t;
@@ -118,6 +119,14 @@ int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(in
 
 
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
+
+
+/*
+ * Retrieves full userspace context of a thread that is not running (e.g. for coredump).
+ * ctx - thread's last saved context, kstackTop - end of thread's kernel stack,
+ * pmap - thread's process pmap.
+ */
+int hal_cpuGetUserCtx(cpu_context_t *ctx, const void *kstackTop, pmap_t *pmap, cpu_context_t *dst);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
