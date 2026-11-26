@@ -136,13 +136,6 @@ int coredump_enqueue(process_t *process)
 		return -ENOENT;
 	}
 
-	/* Avoid deadlock in case dumper is a client */
-	proc_portsDestroy(process);
-
-	if (coredump_isServer(process) != 0) {
-		coredump_serverDied(process);
-	}
-
 	hal_spinlockSet(&coredump_common.spinlock, &sc);
 	if (coredump_common.crashedqLen < COREDUMP_QUEUE_MAX) {
 		LIST_ADD(&coredump_common.crashedq, thread);

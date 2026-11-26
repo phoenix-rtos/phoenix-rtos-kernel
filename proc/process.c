@@ -85,36 +85,42 @@ process_t *proc_find(int pid)
 }
 
 
+static void process_cleanup(process_t *p)
+{
+#ifdef COREDUMP_SUPPORT
+	coredump_processDestroyed(p);
+#endif
+
+	if (p->posix != 0U) {
+		posix_died(process_getPid(p), p->exit, p->userTime, p->sysTime);
+		p->posix = 0;
+	}
+	proc_resourcesDestroy(p);
+	proc_portsDestroy(p);
+}
+
+
 static void process_destroy(process_t *p)
 {
 	thread_t *ghost;
 	vm_map_t *mapp, *imapp;
 
-#ifdef COREDUMP_SUPPORT
-	coredump_processDestroyed(p);
-#endif
+	trace_eventProcessKill(p);
 
+	/* vfork cleanup deferred from thread_destroy() while the process was kept for coredump */
 	ghost = p->ghosts;
-	do {
-		if (ghost->execdata != NULL) {
-			ghost->kstack = ghost->execkstack;
-			proc_vforkedDied(ghost, FORKED);
-		}
-
-		ghost = ghost->procnext;
-	} while (ghost != p->ghosts);
+	if (ghost != NULL) {
+		do {
+			if (ghost->execdata != NULL) {
+				ghost->kstack = ghost->execkstack;
+				proc_vforkedDied(ghost, FORKED);
+			}
+			ghost = ghost->procnext;
+		} while (ghost != p->ghosts);
+	}
 
 	mapp = p->mapp;
 	imapp = p->imapp;
-
-	trace_eventProcessKill(p);
-
-	if (p->posix != 0U) {
-		posix_died(process_getPid(p), p->exit, p->userTime, p->sysTime);
-	}
-
-	/* Destroy resources (especially rtInth) before changing map to prevent race */
-	proc_resourcesDestroy(p);
 
 	proc_changeMap(p, NULL, NULL, NULL);
 
@@ -126,7 +132,6 @@ static void process_destroy(process_t *p)
 		vm_mapDestroy(p, imapp);
 	}
 
-	proc_portsDestroy(p);
 	(void)proc_lockDone(&p->lock);
 
 	while ((ghost = p->ghosts) != NULL) {
@@ -155,6 +160,9 @@ int proc_put(process_t *p)
 		p->coredump = 0;
 		(void)proc_lockClear(&process_common.lock);
 
+		/* No threads left - release everything but memory before waiting for the dump */
+		process_cleanup(p);
+
 		if (coredump_enqueue(p) == EOK) {
 			return 1;
 		}
@@ -170,6 +178,7 @@ int proc_put(process_t *p)
 	(void)proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
+		process_cleanup(p);
 		process_destroy(p);
 	}
 
