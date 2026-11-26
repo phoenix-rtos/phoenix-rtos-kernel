@@ -22,7 +22,8 @@
 #define ASID_BITS       16
 #define NUM_CPUS        4
 #define SIZE_INTERRUPTS 188U
-#define TIMER_IRQ_ID    68U
+#define TIMER_IRQ_ID      30U /* Non-secure physical timer PPI */
+#define TIMER_INIT_IRQ_ID 0U  /* SGI starting the timer on each core */
 
 #ifndef __ASSEMBLY__
 

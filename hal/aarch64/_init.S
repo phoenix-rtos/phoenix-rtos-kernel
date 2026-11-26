@@ -113,6 +113,12 @@ _start:
 	msr cpacr_el1, x0
 	isb
 
+	/* Allow access to CNTPCT and CNTVCT from EL0 */
+	mrs x0, cntkctl_el1
+	orr x0, x0, #0x3
+	msr cntkctl_el1, x0
+	isb
+
 	/* Invalidate caches and TLB */
 	ic iallu
 	bl hal_cpuInvalDataCacheAll
