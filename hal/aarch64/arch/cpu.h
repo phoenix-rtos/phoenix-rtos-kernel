@@ -15,6 +15,7 @@
 #define _PH_HAL_AARCH64_CPU_H_
 
 #include "hal/types.h"
+#include "include/arch/aarch64/context.h"
 #include "include/page.h"
 #include "config.h"
 
@@ -63,22 +64,6 @@
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7*/
-
-typedef struct _cpu_context_t {
-	u64 savesp;
-	u64 cpacr;
-#ifndef __SOFTFP__
-	/* Advanced SIMD/FPU */
-	u64 fpcr;
-	u64 fpsr;
-	u64 freg[2 * 32];
-#endif
-
-	u64 psr;
-	u64 pc;
-	u64 x[31]; /* General purpose registers */
-	u64 sp;
-} cpu_context_t;
 
 
 static inline void hal_cpuDisableInterrupts(void)

@@ -15,6 +15,7 @@
 #define _PH_HAL_RISCV64_CPU_H_
 
 #include "hal/types.h"
+#include "include/arch/riscv64/context.h"
 #include "include/page.h"
 
 #define SIZE_PAGE _PAGE_SIZE
@@ -81,101 +82,6 @@
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7*/
-
-typedef struct {
-	u64 ft0;
-	u64 ft1;
-	u64 ft2;
-	u64 ft3;
-	u64 ft4;
-	u64 ft5;
-	u64 ft6;
-	u64 ft7;
-
-	u64 fs0;
-	u64 fs1;
-
-	u64 fa0;
-	u64 fa1;
-	u64 fa2;
-	u64 fa3;
-	u64 fa4;
-	u64 fa5;
-	u64 fa6;
-	u64 fa7;
-
-	u64 fs2;
-	u64 fs3;
-	u64 fs4;
-	u64 fs5;
-	u64 fs6;
-	u64 fs7;
-	u64 fs8;
-	u64 fs9;
-	u64 fs10;
-	u64 fs11;
-
-	u64 ft8;
-	u64 ft9;
-	u64 ft10;
-	u64 ft11;
-
-	u64 fcsr;
-} __attribute__((packed, aligned(8))) cpu_fpContext_t;
-
-
-/* CPU context saved by interrupt handlers on thread kernel stack */
-typedef struct _cpu_context_t {
-	u64 ra; /* x1 */
-	u64 gp; /* x3 */
-
-	u64 t0; /* x5 */
-	u64 t1; /* x6 */
-	u64 t2; /* x7 */
-
-	u64 s0; /* x8 */
-	u64 s1; /* x9 */
-	u64 a0; /* x10 */
-	u64 a1; /* x11 */
-
-	u64 a2; /* x12 */
-	u64 a3; /* x13 */
-	u64 a4; /* x14 */
-	u64 a5; /* x15 */
-
-	u64 a6; /* x16 */
-	u64 a7; /* x17 */
-	u64 s2; /* x18 */
-	u64 s3; /* x19 */
-
-	u64 s4; /* x20 */
-	u64 s5; /* x21 */
-	u64 s6; /* x22 */
-	u64 s7; /* x23 */
-
-	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
-	u64 s8;  /* x24 */
-	u64 s9;  /* x25 */
-	u64 s10; /* x26 */
-	u64 s11; /* x27 */
-
-	u64 t3; /* x28 */
-	u64 t4; /* x29 */
-	u64 t5; /* x30 */
-	u64 t6; /* x31 */
-
-	u64 ksp;
-	u64 sstatus;
-	u64 sepc;
-	u64 stval;
-	u64 scause;
-	u64 sscratch;
-
-	u64 tp;
-	u64 sp;
-
-	cpu_fpContext_t fpCtx;
-} __attribute__((packed, aligned(8))) cpu_context_t;
 
 
 struct _pmap_t;
