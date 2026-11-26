@@ -13,6 +13,7 @@
 
 
 #include "hal/cpu.h"
+#include "hal/exceptions.h"
 #include "hal/string.h"
 
 #include "hal/types.h"
